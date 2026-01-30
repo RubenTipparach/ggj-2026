@@ -72,7 +72,21 @@
       "Bash(git add:*)",
       "Bash(c:/Users/santi/repos/psx-web-build/sdk/env/Scripts/pip.exe install:*)",
       "Bash(tasklist:*)",
-      "Bash(cmd.exe /c \"cd /d c:\\\\Users\\\\santi\\\\repos\\\\psx-web-build && build.bat\")"
+      "Bash(cmd.exe /c \"cd /d c:\\\\Users\\\\santi\\\\repos\\\\psx-web-build && build.bat\")",
+      "Bash(pip install:*)",
+      "Bash(envScriptspip install numpy Pillow)",
+      "Bash(\"env\\\\Scripts\\\\pip.exe\" install:*)",
+      "Bash(\"c:\\\\Users\\\\santi\\\\repos\\\\ggj-2026\\\\env\\\\Scripts\\\\python.exe\" -m pip install numpy Pillow)",
+      "Bash(cmd //c build_iso.bat)",
+      "Bash(\"env\\\\Scripts\\\\python.exe\":*)",
+      "Bash(\"env\\\\Scripts\\\\python.exe\" -c:*)",
+      "Bash(pushd:*)",
+      "Bash(./build_iso.bat)",
+      "Bash(c:/Users/santi/repos/ggj-2026/tools/mkpsxiso/mkpsxiso.exe iso.xml -o .)",
+      "WebFetch(domain:en.wikipedia.org)",
+      "Bash(c:Userssantireposggj-2026build_iso.bat)",
+      "Bash(cmd.exe /c \"c:\\\\Users\\\\santi\\\\repos\\\\ggj-2026\\\\build_iso.bat\")",
+      "Bash(git mv:*)"
     ]
   }
 }

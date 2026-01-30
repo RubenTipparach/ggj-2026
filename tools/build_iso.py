@@ -76,15 +76,15 @@ def main():
     exe_size = exe_path.stat().st_size / 1024
     print(f"Executable size: {exe_size:.1f} KB")
 
-    # Check for CD-DA music file (SefChol - Take it Slow for testing)
-    music_file = ASSETS_DIR / "sefchol_take_it_slow.wav"
+    # Check for CD-DA music file (guitar track)
+    music_file = ASSETS_DIR / "guitar.wav"
     has_audio = music_file.exists()
     if has_audio:
         shutil.copy(music_file, work_dir / "music.wav")
         music_size = music_file.stat().st_size / (1024 * 1024)
-        print(f"CD-DA music: {music_size:.1f} MB (SefChol - Take it Slow)")
+        print(f"CD-DA music: {music_size:.1f} MB (guitar)")
     else:
-        print("No CD-DA music (sefchol_take_it_slow.wav not found)")
+        print("No CD-DA music (guitar.wav not found)")
 
     # Create SYSTEM.CNF
     (work_dir / "system.cnf").write_text(create_system_cnf())

@@ -33,7 +33,9 @@ if "%MKPSXISO%"=="" (
 echo Using mkpsxiso: %MKPSXISO%
 
 REM Create working directory
+if not exist "%BUILD_DIR%" mkdir "%BUILD_DIR%"
 if not exist "%WORK_DIR%" mkdir "%WORK_DIR%"
+echo Working directory: %WORK_DIR%
 
 REM Copy executable
 copy /Y "%BUILD_DIR%\lander.psexe" "%WORK_DIR%\lander.psexe" >nul
@@ -49,15 +51,6 @@ REM Create ISO XML configuration
 echo ^<?xml version="1.0" encoding="UTF-8"?^>
 echo ^<iso_project image_name="lander.bin" cue_sheet="lander.cue"^>
 echo     ^<track type="data"^>
-echo         ^<identifiers
-echo             system="PLAYSTATION"
-echo             application="PLAYSTATION"
-echo             volume="LANDER"
-echo             volume_set="LANDER"
-echo             publisher="BARE_METAL"
-echo             data_preparer="MKPSXISO"
-echo         /^>
-echo         ^<license file="none"/^>
 echo         ^<directory_tree^>
 echo             ^<file name="SYSTEM.CNF" source="system.cnf"/^>
 echo             ^<file name="LANDER.EXE" source="lander.psexe"/^>
@@ -66,10 +59,14 @@ echo     ^</track^>
 echo ^</iso_project^>
 ) > "%WORK_DIR%\iso.xml"
 
-REM Build disc image
+REM Delete old files to avoid lock issues
+if exist "%WORK_DIR%\lander.bin" del /F "%WORK_DIR%\lander.bin"
+if exist "%WORK_DIR%\lander.cue" del /F "%WORK_DIR%\lander.cue"
+
+REM Build disc image (must run from work dir for relative paths in XML)
 echo Building disc image...
 pushd "%WORK_DIR%"
-"%MKPSXISO%" iso.xml -o .
+"%MKPSXISO%" iso.xml -y
 if errorlevel 1 (
     echo ERROR: mkpsxiso failed!
     popd
@@ -79,6 +76,8 @@ popd
 
 REM Copy output to web/rom
 if not exist "%OUTPUT_DIR%" mkdir "%OUTPUT_DIR%"
+if exist "%OUTPUT_DIR%\lander.bin" del /F "%OUTPUT_DIR%\lander.bin"
+if exist "%OUTPUT_DIR%\lander.cue" del /F "%OUTPUT_DIR%\lander.cue"
 copy /Y "%WORK_DIR%\lander.bin" "%OUTPUT_DIR%\lander.bin" >nul
 copy /Y "%WORK_DIR%\lander.cue" "%OUTPUT_DIR%\lander.cue" >nul
 

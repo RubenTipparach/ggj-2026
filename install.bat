@@ -85,18 +85,20 @@ echo Done.
 echo.
 
 echo [3/6] Initializing SDK submodule...
-if not exist "sdk\.git" (
+if exist "sdk\CMakeLists.txt" (
+    echo SDK already present, skipping...
+) else if exist "sdk\.git" (
+    echo SDK already cloned, updating...
+    cd sdk
+    git pull
+    cd ..
+) else (
     echo Cloning ps1-bare-metal SDK...
     git clone https://github.com/spicyjpeg/ps1-bare-metal.git sdk
     if errorlevel 1 (
         echo ERROR: Failed to clone SDK repository
         exit /b 1
     )
-) else (
-    echo SDK already cloned, updating...
-    cd sdk
-    git pull
-    cd ..
 )
 echo Done.
 echo.
@@ -184,7 +186,7 @@ if not exist "env\Scripts\python.exe" (
 )
 
 echo Installing Python dependencies...
-env\Scripts\python.exe -m pip install pillow --quiet
+env\Scripts\python.exe -m pip install pillow numpy --quiet
 if errorlevel 1 (
     echo ERROR: Failed to install Python dependencies
     exit /b 1

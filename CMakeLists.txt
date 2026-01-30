@@ -38,6 +38,8 @@ target_include_directories(
 	${SDK_PATH}/src/libc
 	${CMAKE_CURRENT_SOURCE_DIR}
 	${CMAKE_CURRENT_SOURCE_DIR}/src
+	${CMAKE_CURRENT_SOURCE_DIR}/src/engine
+	${CMAKE_CURRENT_SOURCE_DIR}/src/game
 )
 link_libraries(common)
 
@@ -68,7 +70,7 @@ add_custom_command(
 	VERBATIM
 )
 
-# Convert 3D model from OBJ to binary format
+# Convert 3D model from OBJ to binary format (ship - kept for reference)
 add_custom_command(
 	OUTPUT "${PROJECT_BINARY_DIR}/lander/modelData.bin"
 	DEPENDS "${PROJECT_SOURCE_DIR}/assets/ship_low_poly.obj"
@@ -80,17 +82,111 @@ add_custom_command(
 	VERBATIM
 )
 
+# Convert character body parts from OBJ to binary format
+# Torso (kid_body_F_L)
+add_custom_command(
+	OUTPUT "${PROJECT_BINARY_DIR}/lander/charBody.bin"
+	DEPENDS "${PROJECT_SOURCE_DIR}/assets/kids_female_L.obj"
+	COMMAND
+		"${Python3_EXECUTABLE}"
+		"${PROJECT_SOURCE_DIR}/tools/convertCharacter.py"
+		"${PROJECT_SOURCE_DIR}/assets/kids_female_L.obj"
+		"${PROJECT_BINARY_DIR}/lander/charBody.bin"
+		"-o" "kid_body_F_L"
+		"-s" "20.0"
+	VERBATIM
+)
+
+# Head (pivot at bottom = neck)
+add_custom_command(
+	OUTPUT "${PROJECT_BINARY_DIR}/lander/charHead.bin"
+	DEPENDS "${PROJECT_SOURCE_DIR}/assets/kids_female_L.obj"
+	COMMAND
+		"${Python3_EXECUTABLE}"
+		"${PROJECT_SOURCE_DIR}/tools/convertCharacter.py"
+		"${PROJECT_SOURCE_DIR}/assets/kids_female_L.obj"
+		"${PROJECT_BINARY_DIR}/lander/charHead.bin"
+		"-o" "kid_body_F_L_head"
+		"-s" "20.0"
+		"--pivot" "bottom"
+	VERBATIM
+)
+
+# Left arm (pivot at top = shoulder)
+add_custom_command(
+	OUTPUT "${PROJECT_BINARY_DIR}/lander/charArmLeft.bin"
+	DEPENDS "${PROJECT_SOURCE_DIR}/assets/kids_female_L.obj"
+	COMMAND
+		"${Python3_EXECUTABLE}"
+		"${PROJECT_SOURCE_DIR}/tools/convertCharacter.py"
+		"${PROJECT_SOURCE_DIR}/assets/kids_female_L.obj"
+		"${PROJECT_BINARY_DIR}/lander/charArmLeft.bin"
+		"-o" "kid_body_Arm_Left"
+		"-s" "20.0"
+		"--pivot" "top"
+	VERBATIM
+)
+
+# Right arm (pivot at top = shoulder)
+add_custom_command(
+	OUTPUT "${PROJECT_BINARY_DIR}/lander/charArmRight.bin"
+	DEPENDS "${PROJECT_SOURCE_DIR}/assets/kids_female_L.obj"
+	COMMAND
+		"${Python3_EXECUTABLE}"
+		"${PROJECT_SOURCE_DIR}/tools/convertCharacter.py"
+		"${PROJECT_SOURCE_DIR}/assets/kids_female_L.obj"
+		"${PROJECT_BINARY_DIR}/lander/charArmRight.bin"
+		"-o" "kid_body_Arm_Right"
+		"-s" "20.0"
+		"--pivot" "top"
+	VERBATIM
+)
+
+# Left leg/foot (pivot at top = hip)
+add_custom_command(
+	OUTPUT "${PROJECT_BINARY_DIR}/lander/charLegLeft.bin"
+	DEPENDS "${PROJECT_SOURCE_DIR}/assets/kids_female_L.obj"
+	COMMAND
+		"${Python3_EXECUTABLE}"
+		"${PROJECT_SOURCE_DIR}/tools/convertCharacter.py"
+		"${PROJECT_SOURCE_DIR}/assets/kids_female_L.obj"
+		"${PROJECT_BINARY_DIR}/lander/charLegLeft.bin"
+		"-o" "kid_body_Feet_Left"
+		"-s" "20.0"
+		"--pivot" "top"
+	VERBATIM
+)
+
+# Right leg/foot (pivot at top = hip)
+add_custom_command(
+	OUTPUT "${PROJECT_BINARY_DIR}/lander/charLegRight.bin"
+	DEPENDS "${PROJECT_SOURCE_DIR}/assets/kids_female_L.obj"
+	COMMAND
+		"${Python3_EXECUTABLE}"
+		"${PROJECT_SOURCE_DIR}/tools/convertCharacter.py"
+		"${PROJECT_SOURCE_DIR}/assets/kids_female_L.obj"
+		"${PROJECT_BINARY_DIR}/lander/charLegRight.bin"
+		"-o" "kid_body_Feet_Right"
+		"-s" "20.0"
+		"--pivot" "top"
+	VERBATIM
+)
+
 # Build the lander executable
 addPS1Executable(
 	lander
-	src/gpu.c
-	src/spu.c
-	src/bios.c
-	src/model.c
-	src/font.c
-	src/cdda.c
-	src/main.c
-	src/trig.c
+	# Engine modules
+	src/engine/gpu.c
+	src/engine/spu.c
+	src/engine/bios.c
+	src/engine/model.c
+	src/engine/font.c
+	src/engine/cdda.c
+	src/engine/transform.c
+	src/engine/trig.c
+	# Game modules
+	src/game/character.c
+	src/game/main.c
 )
 
 # Embed texture data into executable
@@ -105,4 +201,12 @@ addBinaryFile(lander fontPalette "${PROJECT_BINARY_DIR}/lander/fontPalette.dat")
 
 # Embed music data into executable (SPU-ADPCM format)
 addBinaryFileWithSize(lander musicData musicData_size "${PROJECT_BINARY_DIR}/lander/musicData.spu")
+
+# Embed character body part data into executable
+addBinaryFileWithSize(lander charBodyData charBodyData_size "${PROJECT_BINARY_DIR}/lander/charBody.bin")
+addBinaryFileWithSize(lander charHeadData charHeadData_size "${PROJECT_BINARY_DIR}/lander/charHead.bin")
+addBinaryFileWithSize(lander charArmLeftData charArmLeftData_size "${PROJECT_BINARY_DIR}/lander/charArmLeft.bin")
+addBinaryFileWithSize(lander charArmRightData charArmRightData_size "${PROJECT_BINARY_DIR}/lander/charArmRight.bin")
+addBinaryFileWithSize(lander charLegLeftData charLegLeftData_size "${PROJECT_BINARY_DIR}/lander/charLegLeft.bin")
+addBinaryFileWithSize(lander charLegRightData charLegRightData_size "${PROJECT_BINARY_DIR}/lander/charLegRight.bin")
 
