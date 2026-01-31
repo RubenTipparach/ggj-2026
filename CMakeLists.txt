@@ -172,6 +172,52 @@ add_custom_command(
 	VERBATIM
 )
 
+# Convert house models from OBJ to binary format (with vertex colors)
+# House 1
+add_custom_command(
+	OUTPUT "${PROJECT_BINARY_DIR}/lander/house1.bin"
+	DEPENDS "${PROJECT_SOURCE_DIR}/assets/Mercona_hut_1.obj"
+	COMMAND
+		"${Python3_EXECUTABLE}"
+		"${PROJECT_SOURCE_DIR}/tools/convertCharacter.py"
+		"${PROJECT_SOURCE_DIR}/assets/Mercona_hut_1.obj"
+		"${PROJECT_BINARY_DIR}/lander/house1.bin"
+		"-o" "Mercona_hut_2.001"
+		"-s" "80.0"
+		"--pivot" "bottom"
+	VERBATIM
+)
+
+# House 2
+add_custom_command(
+	OUTPUT "${PROJECT_BINARY_DIR}/lander/house2.bin"
+	DEPENDS "${PROJECT_SOURCE_DIR}/assets/Mercona_hut_2.obj"
+	COMMAND
+		"${Python3_EXECUTABLE}"
+		"${PROJECT_SOURCE_DIR}/tools/convertCharacter.py"
+		"${PROJECT_SOURCE_DIR}/assets/Mercona_hut_2.obj"
+		"${PROJECT_BINARY_DIR}/lander/house2.bin"
+		"-o" "Mercona_hut_2"
+		"-s" "80.0"
+		"--pivot" "bottom"
+	VERBATIM
+)
+
+# House 3
+add_custom_command(
+	OUTPUT "${PROJECT_BINARY_DIR}/lander/house3.bin"
+	DEPENDS "${PROJECT_SOURCE_DIR}/assets/Mercona_hut_3.obj"
+	COMMAND
+		"${Python3_EXECUTABLE}"
+		"${PROJECT_SOURCE_DIR}/tools/convertCharacter.py"
+		"${PROJECT_SOURCE_DIR}/assets/Mercona_hut_3.obj"
+		"${PROJECT_BINARY_DIR}/lander/house3.bin"
+		"-o" "Mercona_hut_3"
+		"-s" "80.0"
+		"--pivot" "bottom"
+	VERBATIM
+)
+
 # Build the lander executable
 addPS1Executable(
 	lander
@@ -210,4 +256,9 @@ addBinaryFileWithSize(lander charArmLeftData charArmLeftData_size "${PROJECT_BIN
 addBinaryFileWithSize(lander charArmRightData charArmRightData_size "${PROJECT_BINARY_DIR}/lander/charArmRight.bin")
 addBinaryFileWithSize(lander charLegLeftData charLegLeftData_size "${PROJECT_BINARY_DIR}/lander/charLegLeft.bin")
 addBinaryFileWithSize(lander charLegRightData charLegRightData_size "${PROJECT_BINARY_DIR}/lander/charLegRight.bin")
+
+# Embed house model data into executable
+addBinaryFileWithSize(lander house1Data house1Data_size "${PROJECT_BINARY_DIR}/lander/house1.bin")
+addBinaryFileWithSize(lander house2Data house2Data_size "${PROJECT_BINARY_DIR}/lander/house2.bin")
+addBinaryFileWithSize(lander house3Data house3Data_size "${PROJECT_BINARY_DIR}/lander/house3.bin")
 

@@ -122,31 +122,34 @@ bool initCharacter(Character *chr,
 	return true;
 }
 
-void updateCharacter(Character *chr, int16_t moveX, int16_t moveZ) {
-	/* Check if we're moving */
-	if (moveX != 0 || moveZ != 0) {
+void updateCharacter(Character *chr, int16_t turnInput, int16_t forwardInput) {
+	/* Handle turning - directly modify facing */
+	if (turnInput != 0) {
+		chr->facing += turnInput * PLAYER_TURN_SPEED;
+
+		/* Keep facing in valid range */
+		while (chr->facing > 2048) chr->facing -= 4096;
+		while (chr->facing < -2048) chr->facing += 4096;
+	}
+
+	/* Sync targetFacing with actual facing */
+	chr->targetFacing = chr->facing;
+
+	/* Handle forward/backward movement */
+	if (forwardInput != 0) {
 		chr->isWalking = true;
 
-		/* Update TARGET facing direction based on movement */
-		/* Calculate angle from movement vector (8-direction) */
-		int angle = 0;
-		if (moveZ > 0) {
-			if (moveX > 0) angle = 512;       /* Forward-right: 45 deg */
-			else if (moveX < 0) angle = -512; /* Forward-left: -45 deg */
-			else angle = 0;                    /* Forward: 0 deg */
-		} else if (moveZ < 0) {
-			if (moveX > 0) angle = 1536;      /* Back-right: 135 deg */
-			else if (moveX < 0) angle = -1536; /* Back-left: -135 deg */
-			else angle = 2048;                 /* Back: 180 deg */
-		} else {
-			if (moveX > 0) angle = 1024;      /* Right: 90 deg */
-			else if (moveX < 0) angle = -1024; /* Left: -90 deg */
-		}
-		chr->targetFacing = angle;
+		/* Calculate movement direction from character's facing angle
+		 * facing=0 means looking down +Z axis
+		 * sin(facing) = X component, cos(facing) = Z component */
+		int32_t sinFacing = isin(chr->facing);
+		int32_t cosFacing = icos(chr->facing);
 
-		/* Update position */
-		chr->x += moveX * PLAYER_MOVE_SPEED;
-		chr->z += moveZ * PLAYER_MOVE_SPEED;
+		/* Move in the direction character is facing
+		 * forwardInput > 0 = forward (away from camera)
+		 * forwardInput < 0 = backward (toward camera) */
+		chr->x += (sinFacing * forwardInput * PLAYER_MOVE_SPEED) >> FP_SHIFT;
+		chr->z += (cosFacing * forwardInput * PLAYER_MOVE_SPEED) >> FP_SHIFT;
 
 		/* Advance walk cycle */
 		chr->walkCycle += WALK_CYCLE_SPEED;
@@ -156,26 +159,6 @@ void updateCharacter(Character *chr, int16_t moveX, int16_t moveZ) {
 	} else {
 		chr->isWalking = false;
 	}
-
-	/* Interpolate facing toward target (shortest path around circle) */
-	int16_t diff = chr->targetFacing - chr->facing;
-
-	/* Normalize difference to -2048 to +2048 range (shortest path) */
-	while (diff > 2048) diff -= 4096;
-	while (diff < -2048) diff += 4096;
-
-	/* Apply interpolation */
-	if (diff > PLAYER_TURN_SPEED) {
-		chr->facing += PLAYER_TURN_SPEED;
-	} else if (diff < -PLAYER_TURN_SPEED) {
-		chr->facing -= PLAYER_TURN_SPEED;
-	} else {
-		chr->facing = chr->targetFacing;
-	}
-
-	/* Keep facing in valid range */
-	while (chr->facing > 2048) chr->facing -= 4096;
-	while (chr->facing < -2048) chr->facing += 4096;
 
 	/* Calculate limb rotations based on walk cycle */
 	if (chr->isWalking) {
@@ -201,7 +184,23 @@ void updateCharacter(Character *chr, int16_t moveX, int16_t moveZ) {
 		squashWave = (squashWave < 0) ? -squashWave : squashWave;  /* Abs value */
 		chr->bodySquash = (squashWave * BODY_SQUASH_AMOUNT) / ONE;
 	} else {
-		/* Return to neutral pose */
+		/* Idle pose with breathing animation */
+
+		/* Continue walk cycle at slower speed for breathing */
+		chr->walkCycle += IDLE_BREATH_SPEED;
+		if (chr->walkCycle >= 4096) {
+			chr->walkCycle -= 4096;
+		}
+
+		/* Gentle breathing: body expands/contracts */
+		int breathWave = isin(chr->walkCycle);  /* -ONE to +ONE */
+		/* Convert to 0 to IDLE_BREATH_AMOUNT range (inhale = expand = negative squash) */
+		chr->bodySquash = -(breathWave * IDLE_BREATH_AMOUNT) / ONE;
+
+		/* Subtle head bob with breathing */
+		chr->partRotX[PART_HEAD] = (breathWave * IDLE_HEAD_BOB) / ONE;
+
+		/* Return limbs to neutral pose */
 		for (int i = PART_ARM_LEFT; i <= PART_LEG_RIGHT; i++) {
 			if (chr->partRotX[i] > 0) {
 				chr->partRotX[i] -= LIMB_RETURN_SPEED;
@@ -210,12 +209,6 @@ void updateCharacter(Character *chr, int16_t moveX, int16_t moveZ) {
 				chr->partRotX[i] += LIMB_RETURN_SPEED;
 				if (chr->partRotX[i] > 0) chr->partRotX[i] = 0;
 			}
-		}
-
-		/* Return body squash to neutral */
-		if (chr->bodySquash > 0) {
-			chr->bodySquash -= LIMB_RETURN_SPEED;
-			if (chr->bodySquash < 0) chr->bodySquash = 0;
 		}
 	}
 }

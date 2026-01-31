@@ -128,11 +128,11 @@ void printString(
 
 	uint32_t *ptr;
 
-	// Start by sending a texpage command to tell the GPU to use the font's
-	// spritesheet. Note that the texpage command before a drawing command can
-	// be omitted when reusing the same texture, so sending it here just once is
-	// enough. zIndex 0 = draw in front of everything.
-	ptr    = allocatePacket(chain, 0, 1);
+	// Send a texpage command to tell the GPU to use the font's spritesheet.
+	// IMPORTANT: Use zIndex 1 so the texpage is set BEFORE characters at zIndex 0.
+	// allocatePacket links packets in reverse order within each zIndex, so if
+	// we used zIndex 0 for both, the texpage would execute AFTER the characters!
+	ptr    = allocatePacket(chain, 1, 1);
 	ptr[0] = gp0_texpage(font->page, false, false);
 
 	// Iterate over every character in the string.

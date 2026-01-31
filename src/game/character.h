@@ -60,8 +60,10 @@ bool initCharacter(Character *chr,
 	const uint8_t *legLeftData, uint32_t legLeftSize,
 	const uint8_t *legRightData, uint32_t legRightSize);
 
-/* Update character animation based on movement */
-void updateCharacter(Character *chr, int16_t moveX, int16_t moveZ);
+/* Update character animation based on turn and forward/backward input
+ * turnInput: -1 = turn left, 0 = no turn, +1 = turn right
+ * forwardInput: -1 = backward, 0 = no movement, +1 = forward */
+void updateCharacter(Character *chr, int16_t turnInput, int16_t forwardInput);
 
 /* Draw character to DMA chain (uses camera's view matrix for proper 3D transform) */
 void drawCharacter(DMAChain *chain, Character *chr, const Camera *cam);

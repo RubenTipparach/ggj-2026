@@ -22,10 +22,22 @@
 #include "camera.h"
 #include "game_config.h"
 
-/* Floor settings */
-#define FLOOR_TILE_SIZE  64      /* Size of each floor tile in world units */
-#define FLOOR_GRID_SIZE  8       /* Number of tiles in each direction from center */
-#define FLOOR_Y          80      /* Y position of floor (below character) */
+/* Simple hash-based 2D noise for tile variation (returns 0-255) */
+static int tileNoise(int x, int z) {
+	/* Hash function - mix coordinates to get pseudo-random value */
+	int n = x * 374761393 + z * 668265263;
+	n = (n ^ (n >> 13)) * 1274126177;
+	return (n ^ (n >> 16)) & 255;
+}
+
+/* Performance stats */
+static int statTriangles = 0;    /* Triangles rendered this frame */
+static int statTiles = 0;        /* Floor tiles rendered this frame */
+static int32_t statFrameTime = 0;    /* Frame time in timer ticks */
+static int32_t statGpuWait = 0;      /* GPU wait time in timer ticks */
+static int32_t statFloorTime = 0;    /* Floor drawing time */
+static int32_t statCharTime = 0;     /* Character drawing time */
+static int32_t statPadTime = 0;      /* Controller polling time */
 
 /* Character body part data embedded by CMake */
 extern const uint8_t charBodyData[];
@@ -40,6 +52,100 @@ extern const uint8_t charLegLeftData[];
 extern const uint32_t charLegLeftData_size;
 extern const uint8_t charLegRightData[];
 extern const uint32_t charLegRightData_size;
+
+/* House model data embedded by CMake */
+extern const uint8_t house1Data[];
+extern const uint32_t house1Data_size;
+extern const uint8_t house2Data[];
+extern const uint32_t house2Data_size;
+extern const uint8_t house3Data[];
+extern const uint32_t house3Data_size;
+
+/* Number of houses in the world */
+#define NUM_HOUSES 3
+
+/* Maximum collision boxes per house (for concave shapes) */
+#define MAX_COLLISION_BOXES 4
+
+/* Axis-Aligned Bounding Box for collision (in local space, relative to house center) */
+typedef struct {
+	int32_t minX, minZ;  /* Min corner (world units) */
+	int32_t maxX, maxZ;  /* Max corner (world units) */
+} CollisionBox;
+
+/* House structure - static world object */
+typedef struct {
+	Model model;
+	int32_t x, y, z;  /* World position */
+	int16_t rotation; /* Y rotation (0-4095 = 0-360 degrees) */
+
+	/* Collision data */
+	int numCollisionBoxes;
+	CollisionBox collisionBoxes[MAX_COLLISION_BOXES];
+} House;
+
+/* Player collision radius (world units) */
+#define PLAYER_COLLISION_RADIUS 40
+
+/* Check if a circle (player) collides with a single AABB
+ * Returns true if collision detected */
+static bool checkCircleBoxCollision(int32_t circleX, int32_t circleZ, int32_t radius,
+                                     int32_t boxMinX, int32_t boxMinZ,
+                                     int32_t boxMaxX, int32_t boxMaxZ) {
+	/* Find closest point on box to circle center */
+	int32_t closestX = circleX;
+	int32_t closestZ = circleZ;
+
+	if (circleX < boxMinX) closestX = boxMinX;
+	else if (circleX > boxMaxX) closestX = boxMaxX;
+
+	if (circleZ < boxMinZ) closestZ = boxMinZ;
+	else if (circleZ > boxMaxZ) closestZ = boxMaxZ;
+
+	/* Calculate distance from circle center to closest point */
+	int32_t dx = circleX - closestX;
+	int32_t dz = circleZ - closestZ;
+
+	/* Use squared distance to avoid sqrt */
+	int32_t distSq = dx * dx + dz * dz;
+	int32_t radiusSq = radius * radius;
+
+	return distSq < radiusSq;
+}
+
+/* Check if player collides with a house's collision boxes
+ * House position is in world coordinates, boxes are in local space */
+static bool checkHouseCollision(int32_t playerX, int32_t playerZ, int32_t radius,
+                                 const House *house) {
+	/* Check each collision box */
+	for (int i = 0; i < house->numCollisionBoxes; i++) {
+		const CollisionBox *box = &house->collisionBoxes[i];
+
+		/* Transform box to world space (add house position) */
+		int32_t worldMinX = house->x + box->minX;
+		int32_t worldMinZ = house->z + box->minZ;
+		int32_t worldMaxX = house->x + box->maxX;
+		int32_t worldMaxZ = house->z + box->maxZ;
+
+		if (checkCircleBoxCollision(playerX, playerZ, radius,
+		                            worldMinX, worldMinZ,
+		                            worldMaxX, worldMaxZ)) {
+			return true;
+		}
+	}
+	return false;
+}
+
+/* Check collision against all houses */
+static bool checkAllHouseCollisions(int32_t playerX, int32_t playerZ, int32_t radius,
+                                     const House *houses, int numHouses) {
+	for (int i = 0; i < numHouses; i++) {
+		if (checkHouseCollision(playerX, playerZ, radius, &houses[i])) {
+			return true;
+		}
+	}
+	return false;
+}
 
 /* Font data embedded by CMake */
 extern const uint8_t fontTexture[];
@@ -101,7 +207,14 @@ static void setupGTE(int width, int height) {
 	gte_setControlReg(GTE_ZSF4, ORDERING_TABLE_SIZE / 4);
 }
 
-/* Draw a checkerboard floor for parallax reference */
+/* Initialize Timer 2 for frame timing (runs at CPU clock / 8 = ~4.2 MHz) */
+static void setupTimer(void) {
+	TIMER_CTRL(2) = 0;                        /* Stop timer */
+	TIMER_VALUE(2) = 0;                       /* Reset counter */
+	TIMER_CTRL(2) = TIMER_CTRL_PRESCALE;      /* CPU/8, free running */
+}
+
+/* Draw grass floor with noise-based color variation */
 static void drawFloor(DMAChain *chain, const Camera *cam) {
 	/* Set up identity rotation matrix (we rotate manually) */
 	gte_setRotationMatrix(
@@ -127,14 +240,24 @@ static void drawFloor(DMAChain *chain, const Camera *cam) {
 			int32_t z1 = z0 + FLOOR_TILE_SIZE;
 			int32_t y = FLOOR_Y - cam->y;
 
-			/* Checkerboard pattern based on tile coordinates */
-			int isWhite = ((tileX + tileZ) & 1);
+			/* Use noise to select grass color variant */
+			int noise = tileNoise(tileX, tileZ);
 			uint8_t r, g, b;
-			if (isWhite) {
-				r = 80; g = 80; b = 100;  /* Light tile */
+			if (noise < 100) {
+				/* Teal grass - most common */
+				r = GRASS_COLOR_1_R; g = GRASS_COLOR_1_G; b = GRASS_COLOR_1_B;
+			} else if (noise < 180) {
+				/* Bright green grass */
+				r = GRASS_COLOR_2_R; g = GRASS_COLOR_2_G; b = GRASS_COLOR_2_B;
 			} else {
-				r = 40; g = 40; b = 60;   /* Dark tile */
+				/* Dark blue-ish patches (shadows/variety) */
+				r = GRASS_COLOR_3_R; g = GRASS_COLOR_3_G; b = GRASS_COLOR_3_B;
 			}
+
+			/* Add slight variation based on secondary noise */
+			int variation = tileNoise(tileX + 1000, tileZ + 1000) >> 5;  /* 0-7 */
+			r = (r + variation > 255) ? 255 : r + variation;
+			g = (g + variation > 255) ? 255 : g + variation;
 
 			/* Set translation for GTE */
 			gte_setControlReg(GTE_TRX, 0);
@@ -186,8 +309,16 @@ static void drawFloor(DMAChain *chain, const Camera *cam) {
 			               (int32_t)cam->viewRotation.m[2][1] * y +
 			               (int32_t)cam->viewRotation.m[2][2] * z1) >> FP_SHIFT;
 
-			/* Skip tiles behind camera (check in view space) */
+			/* Frustum culling in view space (with margin to avoid popping at edges)
+			 * Use wider angle than actual FOV: vx*2 vs vz*3 gives ~56 degree half-angle */
+			/* Skip tiles behind camera */
 			if (vz0 < 10 && vz1 < 10 && vz2 < 10 && vz3 < 10) continue;
+
+			/* Skip tiles entirely to the left of view */
+			if (vx0*2 < -vz0*3 && vx1*2 < -vz1*3 && vx2*2 < -vz2*3 && vx3*2 < -vz3*3) continue;
+
+			/* Skip tiles entirely to the right of view */
+			if (vx0*2 > vz0*3 && vx1*2 > vz1*3 && vx2*2 > vz2*3 && vx3*2 > vz3*3) continue;
 
 			/* Transform 4 corners of tile with rotated coordinates */
 			GTEVector16 v0 = {vx0, vy0, vz0, 0};
@@ -201,16 +332,17 @@ static void drawFloor(DMAChain *chain, const Camera *cam) {
 			gte_loadV2(&v2);
 			gte_command(GTE_CMD_RTPT | GTE_SF);
 
-			/* Get average Z for depth sorting */
-			gte_command(GTE_CMD_AVSZ3 | GTE_SF);
-			int zIndex = gte_getDataReg(GTE_OTZ);
-			if (zIndex >= 0 && zIndex < ORDERING_TABLE_SIZE) {
-				uint32_t *ptr = allocatePacket(chain, zIndex, 4);
-				ptr[0] = gp0_rgb(r, g, b) | gp0_triangle(false, false);
-				gte_storeDataReg(GTE_SXY0, 1 * 4, ptr);
-				gte_storeDataReg(GTE_SXY1, 2 * 4, ptr);
-				gte_storeDataReg(GTE_SXY2, 3 * 4, ptr);
-			}
+			/* Count this tile */
+			statTiles++;
+
+			/* Floor always draws at back of ordering table (before models)
+			 * Use fixed z-index instead of depth sorting to avoid z-fighting */
+			uint32_t *ptr = allocatePacket(chain, ORDERING_TABLE_SIZE - 2, 4);
+			ptr[0] = gp0_rgb(r, g, b) | gp0_triangle(false, false);
+			gte_storeDataReg(GTE_SXY0, 1 * 4, ptr);
+			gte_storeDataReg(GTE_SXY1, 2 * 4, ptr);
+			gte_storeDataReg(GTE_SXY2, 3 * 4, ptr);
+			statTriangles++;
 
 			/* Triangle 2: v0, v2, v3 */
 			gte_loadV0(&v0);
@@ -218,16 +350,121 @@ static void drawFloor(DMAChain *chain, const Camera *cam) {
 			gte_loadV2(&v3);
 			gte_command(GTE_CMD_RTPT | GTE_SF);
 
-			gte_command(GTE_CMD_AVSZ3 | GTE_SF);
-			zIndex = gte_getDataReg(GTE_OTZ);
-			if (zIndex >= 0 && zIndex < ORDERING_TABLE_SIZE) {
-				uint32_t *ptr = allocatePacket(chain, zIndex, 4);
-				ptr[0] = gp0_rgb(r, g, b) | gp0_triangle(false, false);
-				gte_storeDataReg(GTE_SXY0, 1 * 4, ptr);
-				gte_storeDataReg(GTE_SXY1, 2 * 4, ptr);
-				gte_storeDataReg(GTE_SXY2, 3 * 4, ptr);
-			}
+			ptr = allocatePacket(chain, ORDERING_TABLE_SIZE - 2, 4);
+			ptr[0] = gp0_rgb(r, g, b) | gp0_triangle(false, false);
+			gte_storeDataReg(GTE_SXY0, 1 * 4, ptr);
+			gte_storeDataReg(GTE_SXY1, 2 * 4, ptr);
+			statTriangles++;
+			gte_storeDataReg(GTE_SXY2, 3 * 4, ptr);
 		}
+	}
+}
+
+/* Draw a static house model at world position */
+static void drawHouse(DMAChain *chain, const House *house, const Camera *cam) {
+	/* Calculate house position relative to camera (in world space) */
+	int32_t relX = house->x - cam->x;
+	int32_t relY = house->y - cam->y;
+	int32_t relZ = house->z - cam->z;
+
+	/* Apply camera's view rotation matrix to get view-space position */
+	int32_t viewX = ((int32_t)cam->viewRotation.m[0][0] * relX +
+	                 (int32_t)cam->viewRotation.m[0][1] * relY +
+	                 (int32_t)cam->viewRotation.m[0][2] * relZ) >> FP_SHIFT;
+	int32_t viewY = ((int32_t)cam->viewRotation.m[1][0] * relX +
+	                 (int32_t)cam->viewRotation.m[1][1] * relY +
+	                 (int32_t)cam->viewRotation.m[1][2] * relZ) >> FP_SHIFT;
+	int32_t viewZ = ((int32_t)cam->viewRotation.m[2][0] * relX +
+	                 (int32_t)cam->viewRotation.m[2][1] * relY +
+	                 (int32_t)cam->viewRotation.m[2][2] * relZ) >> FP_SHIFT;
+
+	/* Skip if behind camera */
+	if (viewZ < 10) return;
+
+	/* Build combined rotation: viewRotation * houseYawRotation
+	 * This properly handles camera pitch so houses don't bob */
+	Matrix3x3 houseRot;
+	matrixRotateY(&houseRot, house->rotation);
+
+	Matrix3x3 combined;
+	matrixMultiply(&combined, &cam->viewRotation, &houseRot);
+
+	/* Load combined rotation matrix to GTE */
+	matrixLoadToGTE(&combined);
+
+	/* Set translation */
+	gte_setControlReg(GTE_TRX, viewX);
+	gte_setControlReg(GTE_TRY, viewY);
+	gte_setControlReg(GTE_TRZ, viewZ);
+
+	/* Draw all faces */
+	const Model *model = &house->model;
+	for (int i = 0; i < model->numFaces; i++) {
+		const Face *face = &model->faces[i];
+
+		/* Scale vertices by HOUSE_SCALE (4096 = 1.0x) */
+		GTEVector16 v0, v1, v2;
+		v0.x = (model->vertices[face->v0].x * HOUSE_SCALE) >> 12;
+		v0.y = (model->vertices[face->v0].y * HOUSE_SCALE) >> 12;
+		v0.z = (model->vertices[face->v0].z * HOUSE_SCALE) >> 12;
+		v0._padding = 0;
+
+		v1.x = (model->vertices[face->v1].x * HOUSE_SCALE) >> 12;
+		v1.y = (model->vertices[face->v1].y * HOUSE_SCALE) >> 12;
+		v1.z = (model->vertices[face->v1].z * HOUSE_SCALE) >> 12;
+		v1._padding = 0;
+
+		v2.x = (model->vertices[face->v2].x * HOUSE_SCALE) >> 12;
+		v2.y = (model->vertices[face->v2].y * HOUSE_SCALE) >> 12;
+		v2.z = (model->vertices[face->v2].z * HOUSE_SCALE) >> 12;
+		v2._padding = 0;
+
+		/* Load scaled vertices */
+		gte_loadV0(&v0);
+		gte_loadV1(&v1);
+		gte_loadV2(&v2);
+
+		/* Perspective transformation */
+		gte_command(GTE_CMD_RTPT | GTE_SF);
+
+		/* Backface culling */
+		gte_command(GTE_CMD_NCLIP);
+		int nclip = gte_getDataReg(GTE_MAC0);
+		if (nclip >= 0) continue;
+
+		/* Calculate average Z for depth sorting */
+		gte_command(GTE_CMD_AVSZ3 | GTE_SF);
+		int zIndex = gte_getDataReg(GTE_OTZ);
+
+		if (zIndex < 0 || zIndex >= ORDERING_TABLE_SIZE)
+			continue;
+
+		/* Get vertex colors */
+		uint8_t r0, g0, b0, r1, g1, b1, r2, g2, b2;
+		if (model->colors) {
+			r0 = model->colors[face->v0].r;
+			g0 = model->colors[face->v0].g;
+			b0 = model->colors[face->v0].b;
+			r1 = model->colors[face->v1].r;
+			g1 = model->colors[face->v1].g;
+			b1 = model->colors[face->v1].b;
+			r2 = model->colors[face->v2].r;
+			g2 = model->colors[face->v2].g;
+			b2 = model->colors[face->v2].b;
+		} else {
+			r0 = g0 = b0 = r1 = g1 = b1 = r2 = g2 = b2 = 128;
+		}
+
+		/* Allocate packet for Gouraud-shaded triangle */
+		uint32_t *ptr = allocatePacket(chain, zIndex, 6);
+		ptr[0] = gp0_rgb(r0, g0, b0) | gp0_shadedTriangle(true, false, false);
+		gte_storeDataReg(GTE_SXY0, 1 * 4, ptr);
+		ptr[2] = gp0_rgb(r1, g1, b1);
+		gte_storeDataReg(GTE_SXY1, 3 * 4, ptr);
+		ptr[4] = gp0_rgb(r2, g2, b2);
+		gte_storeDataReg(GTE_SXY2, 5 * 4, ptr);
+
+		statTriangles++;
 	}
 }
 
@@ -367,6 +604,9 @@ int main(int argc, const char **argv) {
 	/* Initialize GTE */
 	setupGTE(SCREEN_WIDTH, SCREEN_HEIGHT);
 
+	/* Initialize timer for performance measurement */
+	setupTimer();
+
 	/* Enable DMA channels */
 	DMA_DPCR |= 0
 	| DMA_DPCR_CH_ENABLE(DMA_GPU)
@@ -375,16 +615,18 @@ int main(int argc, const char **argv) {
 	GPU_GP1 = gp1_dmaRequestMode(GP1_DREQ_GP0_WRITE);
 	GPU_GP1 = gp1_dispBlank(false);
 
-	/* Upload font to VRAM */
+	/* Upload font to VRAM
+	 * Place at Y=256 to be in a separate texture page from any potential
+	 * VRAM conflicts at Y=0. This matches the working layout from old-code. */
 	TextureInfo font;
 	uploadIndexedTexture(
 		&font,
 		fontTexture,
 		fontPalette,
-		SCREEN_WIDTH * 2,          /* Image X */
-		0,                         /* Image Y */
-		SCREEN_WIDTH * 2,          /* Palette X */
-		FONT_HEIGHT,               /* Palette Y (below font image) */
+		SCREEN_WIDTH * 2,          /* Image X = 640 */
+		256,                       /* Image Y = 256 (texture page Y=1) */
+		SCREEN_WIDTH * 2,          /* Palette X = 640 */
+		256 + FONT_HEIGHT,         /* Palette Y = 312 (below font image) */
 		FONT_WIDTH,
 		FONT_HEIGHT,
 		FONT_COLOR_DEPTH
@@ -407,8 +649,8 @@ int main(int argc, const char **argv) {
 	}
 
 	/* Initialize CD-DA for background music */
-	initCDDA();
-	puts("CD-DA initialized - music playing from disc");
+	// initCDDA();
+	// puts("CD-DA initialized - music playing from disc");
 
 	/* Unmute SPU */
 	spuUnmute();
@@ -428,6 +670,65 @@ int main(int argc, const char **argv) {
 		return 1;
 	}
 	puts("Character initialized!");
+
+	/* Initialize houses */
+	House houses[NUM_HOUSES];
+
+	/* Load house models (using character model loader for vertex colors) */
+	if (!loadCharacterModel(&houses[0].model, house1Data, house1Data_size)) {
+		puts("Failed to load house 1!");
+		return 1;
+	}
+	if (!loadCharacterModel(&houses[1].model, house2Data, house2Data_size)) {
+		puts("Failed to load house 2!");
+		return 1;
+	}
+	if (!loadCharacterModel(&houses[2].model, house3Data, house3Data_size)) {
+		puts("Failed to load house 3!");
+		return 1;
+	}
+
+	/* Position houses around the player in a triangle pattern */
+	/* House 1: front-left */
+	houses[0].x = -800;
+	houses[0].y = FLOOR_Y;
+	houses[0].z = 1000;
+	houses[0].rotation = 512;  /* Facing slightly right */
+	/* Collision box for house 1 (single box for simple hut) */
+	houses[0].numCollisionBoxes = 1;
+	houses[0].collisionBoxes[0].minX = -120;
+	houses[0].collisionBoxes[0].minZ = -120;
+	houses[0].collisionBoxes[0].maxX = 120;
+	houses[0].collisionBoxes[0].maxZ = 120;
+
+	/* House 2: front-right */
+	houses[1].x = 800;
+	houses[1].y = FLOOR_Y;
+	houses[1].z = 1200;
+	houses[1].rotation = -512;  /* Facing slightly left */
+	/* Collision box for house 2 */
+	houses[1].numCollisionBoxes = 1;
+	houses[1].collisionBoxes[0].minX = -120;
+	houses[1].collisionBoxes[0].minZ = -120;
+	houses[1].collisionBoxes[0].maxX = 120;
+	houses[1].collisionBoxes[0].maxZ = 120;
+
+	/* House 3: behind player */
+	houses[2].x = 0;
+	houses[2].y = FLOOR_Y;
+	houses[2].z = -1000;
+	houses[2].rotation = 2048;  /* Facing player spawn */
+	/* Collision box for house 3 */
+	houses[2].numCollisionBoxes = 1;
+	houses[2].collisionBoxes[0].minX = -120;
+	houses[2].collisionBoxes[0].minZ = -120;
+	houses[2].collisionBoxes[0].maxX = 120;
+	houses[2].collisionBoxes[0].maxZ = 120;
+
+	printf("Houses loaded: %d, %d, %d faces\n",
+		houses[0].model.numFaces,
+		houses[1].model.numFaces,
+		houses[2].model.numFaces);
 
 	/* Double buffering */
 	DMAChain dmaChains[2];
@@ -463,24 +764,37 @@ int main(int argc, const char **argv) {
 		clearOrderingTable(chain->orderingTable, ORDERING_TABLE_SIZE);
 		chain->nextPacket = chain->data;
 
-		/* Poll controller */
+		/* Reset stats and start frame timer */
+		statTriangles = 0;
+		statTiles = 0;
+		TIMER_VALUE(2) = 0;
+		uint16_t frameStart = TIMER_VALUE(2);
+
+		/* Poll controller (use uint16_t for timer to handle wraparound) */
+		uint16_t t0 = TIMER_VALUE(2);
 		ControllerState pad;
 		pollController(0, &pad);
+		uint16_t t1 = TIMER_VALUE(2);
+		statPadTime = (uint16_t)(t1 - t0);  /* uint16_t subtraction handles wrap */
 
 		/* Get movement input */
 		int16_t moveX = 0;
 		int16_t moveZ = 0;
 
-		/* Analog stick input */
+		/* Analog stick input
+		 * Left/Right on stick = turn (moveX)
+		 * Up/Down on stick = forward/backward (moveZ) */
 		if (pad.isAnalog) {
 			int stickX = (int)pad.leftX - 0x80;
 			int stickY = (int)pad.leftY - 0x80;
 
-			if (stickX > ANALOG_DEADZONE) moveX = 1;
-			else if (stickX < -ANALOG_DEADZONE) moveX = -1;
+			/* X axis: turn left/right */
+			if (stickX > ANALOG_DEADZONE) moveX = 1;       /* Turn right */
+			else if (stickX < -ANALOG_DEADZONE) moveX = -1; /* Turn left */
 
-			if (stickY > ANALOG_DEADZONE) moveZ = -1;  /* Forward is -Z */
-			else if (stickY < -ANALOG_DEADZONE) moveZ = 1;
+			/* Y axis: forward/backward (stick up = forward = positive) */
+			if (stickY < -ANALOG_DEADZONE) moveZ = 1;       /* Up on stick = forward */
+			else if (stickY > ANALOG_DEADZONE) moveZ = -1;  /* Down on stick = backward */
 		}
 
 		/* D-pad input (overrides analog if pressed) */
@@ -504,11 +818,46 @@ int main(int argc, const char **argv) {
 			if (bgFlash < 0) bgFlash = 0;
 		}
 
-		/* Update character animation */
+		/* Store old position for collision response */
+		int32_t oldX = player.x;
+		int32_t oldZ = player.z;
+
+		/* Update character animation and movement */
 		updateCharacter(&player, moveX, moveZ);
 
+		/* Check collision with houses and handle wall sliding */
+		int32_t newWorldX = player.x >> 12;  /* Convert to world units */
+		int32_t newWorldZ = player.z >> 12;
+		int32_t oldWorldX = oldX >> 12;
+		int32_t oldWorldZ = oldZ >> 12;
+
+		if (checkAllHouseCollisions(newWorldX, newWorldZ, PLAYER_COLLISION_RADIUS,
+		                            houses, NUM_HOUSES)) {
+			/* Collision detected - try sliding along walls */
+			/* Try moving only in X (keep old Z) */
+			bool canMoveX = !checkAllHouseCollisions(newWorldX, oldWorldZ,
+			                                          PLAYER_COLLISION_RADIUS,
+			                                          houses, NUM_HOUSES);
+			/* Try moving only in Z (keep old X) */
+			bool canMoveZ = !checkAllHouseCollisions(oldWorldX, newWorldZ,
+			                                          PLAYER_COLLISION_RADIUS,
+			                                          houses, NUM_HOUSES);
+
+			if (canMoveX && !canMoveZ) {
+				/* Slide along X axis only */
+				player.z = oldZ;
+			} else if (canMoveZ && !canMoveX) {
+				/* Slide along Z axis only */
+				player.x = oldX;
+			} else {
+				/* Can't move in either direction - fully block */
+				player.x = oldX;
+				player.z = oldZ;
+			}
+		}
+
 		/* Update CD-DA looping */
-		updateCDDA();
+		// updateCDDA();
 
 		/* Manual camera rotation with L1/R1 bumpers */
 		if (pad.buttons & PAD_L1) {
@@ -516,6 +865,27 @@ int main(int argc, const char **argv) {
 		}
 		if (pad.buttons & PAD_R1) {
 			orbitAngle += 40;  /* Rotate right */
+		}
+
+		/* Camera follow logic: when player is moving, camera rotates to follow
+		 * Moving forward: camera behind player (facing + 2048)
+		 * Moving backward: camera in front of player (facing + 0) */
+		if (player.isWalking) {
+			int16_t targetOrbit = player.facing + (moveZ > 0 ? 2048 : 0);
+
+			/* Normalize target to -2048..2047 range */
+			while (targetOrbit > 2048) targetOrbit -= 4096;
+			while (targetOrbit < -2048) targetOrbit += 4096;
+
+			/* Calculate shortest angular distance */
+			int16_t diff = targetOrbit - orbitAngle;
+
+			/* Handle wraparound for shortest path */
+			if (diff > 2048) diff -= 4096;
+			if (diff < -2048) diff += 4096;
+
+			/* Smoothly interpolate (using camera follow divisor from config) */
+			orbitAngle += diff / CAMERA_FOLLOW_DIVISOR;
 		}
 
 		/* Keep orbit angle in valid range */
@@ -531,11 +901,22 @@ int main(int argc, const char **argv) {
 		cameraOrbit(&cam, playerWorldX, playerWorldY, playerWorldZ,
 		            orbitAngle, CAMERA_DISTANCE, -CAMERA_Y_OFFSET);
 
-		/* Draw floor for parallax reference */
-		drawFloor(chain, &cam);
+		/* Draw order: floor first (background), then all models together
+		 * This helps the ordering table sort models correctly against each other */
 
-		/* Draw character */
+		/* 1. Draw floor tiles (background layer) */
+		uint16_t t2 = TIMER_VALUE(2);
+		drawFloor(chain, &cam);
+		uint16_t t3 = TIMER_VALUE(2);
+		statFloorTime = (uint16_t)(t3 - t2);
+
+		/* 2. Draw all models (they sort among themselves via ordering table) */
 		drawCharacter(chain, &player, &cam);
+		for (int i = 0; i < NUM_HOUSES; i++) {
+			drawHouse(chain, &houses[i], &cam);
+		}
+		uint16_t t4 = TIMER_VALUE(2);
+		statCharTime = (uint16_t)(t4 - t3);
 
 		/* Calculate gradient colors */
 		int topR = BG_TOP_R + ((BG_FLASH_TOP_R - BG_TOP_R) * bgFlash) / 255;
@@ -562,11 +943,42 @@ int main(int argc, const char **argv) {
 		ptr[4] = gp0_rgb(botR, botG, botB);
 		ptr[5] = gp0_xy(0, SCREEN_HEIGHT);
 
-		/* Display debug info: camera angle and player facing */
-		char debugText[64];
-		int camDeg = (cam.yaw * 360) / 4096;
-		int playerDeg = (player.facing * 360) / 4096;
-		sprintf(debugText, "Cam: %d deg  Player: %d deg", camDeg, playerDeg);
+		/* Measure CPU time before GPU wait */
+		uint16_t cpuEnd = TIMER_VALUE(2);
+
+		/* Calculate current frame's CPU time */
+		uint16_t currentFrameTime = (uint16_t)(cpuEnd - frameStart);
+
+		/* Smooth the frame time using exponential moving average (7/8 old + 1/8 new)
+		 * This reduces jitter in the displayed stats */
+		statFrameTime = (statFrameTime * 7 + currentFrameTime) / 8;
+
+		/* Calculate FPS and CPU percentage from smoothed time
+		 * Timer runs at CPU/8 = 33.8MHz/8 = 4.225MHz
+		 * 60fps frame budget = 4225000/60 = 70416 ticks */
+		int fps = (statFrameTime > 0) ? (4225000 / statFrameTime) : 60;
+		if (fps > 99) fps = 99;
+		int cpuPercent = ((long)statFrameTime * 100) / 70416;
+		if (cpuPercent > 99) cpuPercent = 99;
+
+		/* Build visual CPU bar: 10 chars wide */
+		char cpuBar[12];
+		int filled = (cpuPercent + 5) / 10;  /* Round to nearest 10% */
+		for (int i = 0; i < 10; i++) {
+			cpuBar[i] = (i < filled) ? '#' : '-';
+		}
+		cpuBar[10] = '\0';
+
+		/* Convert times to percentages of frame budget (use long to avoid overflow) */
+		int padPct = ((long)statPadTime * 100) / 70416;
+		int floorPct = ((long)statFloorTime * 100) / 70416;
+		int charPct = ((long)statCharTime * 100) / 70416;
+
+		/* Display performance stats */
+		char debugText[96];
+		sprintf(debugText, "FPS:%2d Tri:%3d [%s]%2d%%\nPad:%2d%% Floor:%2d%% Char:%2d%%",
+		        fps, statTriangles, cpuBar, cpuPercent,
+		        padPct, floorPct, charPct);
 		printString(chain, &font, 8, 8, debugText);
 
 		/* Set drawing area attributes */
@@ -580,7 +992,11 @@ int main(int argc, const char **argv) {
 		ptr[3] = gp0_fbOrigin(bufferX, bufferY);
 
 		/* Wait for GPU and VSync, then draw */
+		uint16_t gpuStart = TIMER_VALUE(2);
 		waitForGP0Ready();
+		uint16_t gpuEnd = TIMER_VALUE(2);
+		statGpuWait = (uint16_t)(gpuEnd - gpuStart);
+
 		waitForVSync();
 		sendLinkedList(&(chain->orderingTable)[ORDERING_TABLE_SIZE - 1]);
 	}

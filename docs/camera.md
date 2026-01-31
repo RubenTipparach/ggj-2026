@@ -2,6 +2,9 @@
 
 This document explains how the 3D camera and projection system works for PS1 bare-metal development.
 
+> **Note**: This documentation reflects lessons learned during development, including
+> critical fixes to the view matrix calculation that resolved camera rotation issues.
+
 ## Overview
 
 The rendering pipeline transforms 3D world coordinates into 2D screen coordinates through a series of matrix transformations:
@@ -88,9 +91,36 @@ void cameraUpdateVectors(Camera *cam) {
 
 ### View Matrix
 
-The view matrix transforms world coordinates into camera-relative coordinates. It combines:
-1. **Translation** by negative camera position
-2. **Rotation** by yaw (Y-axis) then pitch (X-axis)
+The view matrix transforms world coordinates into camera-relative coordinates. This is the
+**inverse** of the camera's own rotation - a critical distinction that caused issues during
+development.
+
+#### Understanding Camera vs View Rotation
+
+```
+Camera Rotation:  How the camera is oriented in world space
+                  R_camera = RotY(yaw) * RotX(pitch)
+
+View Matrix:      The INVERSE - rotates the world so camera looks down -Z
+                  R_view = R_camera^(-1) = RotX(-pitch) * RotY(-yaw)
+```
+
+**Key insight**: The view matrix is NOT the camera rotation. It's the inverse.
+For a rotation matrix, inverse = transpose, but the multiplication ORDER must also reverse.
+
+#### Common Mistake (What NOT to do)
+
+A common mistake is to compute the camera rotation directly or simply transpose it:
+
+```c
+/* WRONG: This computes camera rotation, not view matrix */
+/* M = RotX(pitch) * RotY(yaw) */
+cam->viewRotation.m[0][0] = cy;
+cam->viewRotation.m[0][2] = sy;   /* <-- wrong sign */
+/* ... this will cause objects to rotate opposite to camera */
+```
+
+#### Correct Implementation
 
 ```c
 void cameraUpdateViewMatrix(Camera *cam) {
@@ -99,33 +129,62 @@ void cameraUpdateViewMatrix(Camera *cam) {
     int32_t cp = icos(cam->pitch);
     int32_t sp = isin(cam->pitch);
 
-    /* Combined matrix M = RotX(pitch) * RotY(yaw):
+    /* VIEW matrix = RotX(-pitch) * RotY(-yaw)
+     * Using cos(-θ) = cos(θ), sin(-θ) = -sin(θ):
      *
-     * Row 0: [cos(yaw),              0,              sin(yaw)           ]
-     * Row 1: [sin(yaw)*sin(pitch),   cos(pitch),    -cos(yaw)*sin(pitch)]
-     * Row 2: [-sin(yaw)*cos(pitch),  sin(pitch),     cos(yaw)*cos(pitch)]
+     * Row 0: [cy, 0, -sy]
+     * Row 1: [sp*sy, cp, sp*cy]
+     * Row 2: [cp*sy, -sp, cp*cy]
      */
     cam->viewRotation.m[0][0] = cy;
     cam->viewRotation.m[0][1] = 0;
-    cam->viewRotation.m[0][2] = sy;
+    cam->viewRotation.m[0][2] = -sy;  /* Note: NEGATIVE */
 
-    cam->viewRotation.m[1][0] = (sy * sp) >> FP_SHIFT;
+    cam->viewRotation.m[1][0] = (sp * sy) >> FP_SHIFT;
     cam->viewRotation.m[1][1] = cp;
-    cam->viewRotation.m[1][2] = -(cy * sp) >> FP_SHIFT;
+    cam->viewRotation.m[1][2] = (sp * cy) >> FP_SHIFT;
 
-    cam->viewRotation.m[2][0] = -(sy * cp) >> FP_SHIFT;
-    cam->viewRotation.m[2][1] = sp;
-    cam->viewRotation.m[2][2] = (cy * cp) >> FP_SHIFT;
+    cam->viewRotation.m[2][0] = (cp * sy) >> FP_SHIFT;
+    cam->viewRotation.m[2][1] = -sp;  /* Note: NEGATIVE */
+    cam->viewRotation.m[2][2] = (cp * cy) >> FP_SHIFT;
 
     /* Translation in view space: viewT = viewRotation * (-camPos) */
     int32_t tx = -cam->x;
     int32_t ty = -cam->y;
     int32_t tz = -cam->z;
 
-    cam->viewTX = (cam->viewRotation.m[0][0] * tx + ... ) >> FP_SHIFT;
-    cam->viewTY = (cam->viewRotation.m[1][0] * tx + ... ) >> FP_SHIFT;
-    cam->viewTZ = (cam->viewRotation.m[2][0] * tx + ... ) >> FP_SHIFT;
+    cam->viewTX = (cam->viewRotation.m[0][0] * tx +
+                   cam->viewRotation.m[0][1] * ty +
+                   cam->viewRotation.m[0][2] * tz) >> FP_SHIFT;
+    cam->viewTY = (cam->viewRotation.m[1][0] * tx +
+                   cam->viewRotation.m[1][1] * ty +
+                   cam->viewRotation.m[1][2] * tz) >> FP_SHIFT;
+    cam->viewTZ = (cam->viewRotation.m[2][0] * tx +
+                   cam->viewRotation.m[2][1] * ty +
+                   cam->viewRotation.m[2][2] * tz) >> FP_SHIFT;
 }
+```
+
+#### Derivation
+
+Given camera rotation `R = RotY(yaw) * RotX(pitch)`:
+
+1. The inverse of a rotation matrix is its transpose
+2. But for combined rotations: `(A * B)^(-1) = B^(-1) * A^(-1)`
+3. So: `R^(-1) = RotX(-pitch) * RotY(-yaw)` (reverse order, negate angles)
+
+Expanding `RotX(-pitch) * RotY(-yaw)`:
+
+```
+RotX(-p) = | 1    0     0  |    RotY(-y) = | cy   0   -sy |
+           | 0   cp    sp  |               |  0   1    0  |
+           | 0  -sp    cp  |               | sy   0   cy  |
+
+View = RotX(-p) * RotY(-y) =
+
+| 1    0     0  |   | cy   0   -sy |   | cy      0     -sy    |
+| 0   cp    sp  | * |  0   1    0  | = | sp*sy   cp    sp*cy  |
+| 0  -sp    cp  |   | sy   0   cy  |   | cp*sy  -sp    cp*cy  |
 ```
 
 ## Fixed-Point Math
@@ -318,9 +377,87 @@ for (each vertex) {
 }
 ```
 
+## Trigonometry Functions
+
+The engine uses custom integer-based trig functions:
+
+```c
+int isin(int x);   /* Returns sine * 4096 */
+int icos(int x);   /* Returns cosine * 4096 */
+int iatan2(int y, int x);  /* Returns angle in PS1 units */
+int isqrt(int x);  /* Integer square root */
+```
+
+**Critical**: `isin` and `icos` use **4096 units = full circle (360°)**:
+- Input angle of 0 → sin=0, cos=4096
+- Input angle of 1024 → sin=4096, cos=0 (90 degrees)
+- Input angle of 2048 → sin=0, cos=-4096 (180 degrees)
+
+This matches the PS1 angle unit convention. Do NOT divide angles by 2 before passing
+to these functions - pass them directly.
+
+## Debugging Tips
+
+### Symptom: Objects rotate multiple times before returning to original position
+
+**Cause**: Angle units mismatch. Check if you're dividing angles when you shouldn't.
+
+**Fix**: Verify that trig functions use 4096 = 360°. Pass angles directly without conversion.
+
+### Symptom: Camera rotation is backwards or inverted
+
+**Cause**: Using camera rotation matrix instead of view matrix (the inverse).
+
+**Fix**: Ensure view matrix uses `RotX(-pitch) * RotY(-yaw)`, not `RotX(pitch) * RotY(yaw)`.
+
+### Symptom: Floor appears slanted when pitching camera
+
+**Cause**: Matrix multiplication order is wrong.
+
+**Fix**: View matrix must be `RotX(-pitch) * RotY(-yaw)`, computed as:
+- First build RotX matrix with -pitch
+- Then multiply by RotY matrix with -yaw
+- Order matters! `A * B ≠ B * A` for rotation matrices
+
+### Symptom: Objects rotate at different rates than the floor
+
+**Cause**: Different transform code paths using inconsistent rotation calculations.
+
+**Fix**: All rendering (floor, characters, objects) must use the same `cam->viewRotation`
+matrix. Don't compute separate yaw-only rotations for some objects.
+
+## Common Pitfalls
+
+1. **Ordering table reverse linking**: `allocatePacket` links packets in reverse
+   order within each Z index. This means state-setting commands (texpage, etc.)
+   should be at a **higher Z index** than their draw commands, otherwise the
+   state is set AFTER the drawing occurs.
+
+2. **Matrix order**: `RotX * RotY ≠ RotY * RotX`. Rotation is not commutative.
+
+2. **View vs Camera**: The view matrix is the INVERSE of camera orientation. When
+   camera rotates right, the world appears to rotate left.
+
+3. **Inverse of combined rotations**: `(A * B)^(-1) = B^(-1) * A^(-1)` - the order
+   reverses AND each matrix is inverted.
+
+4. **Fixed-point overflow**: Always shift after multiplication:
+   ```c
+   /* Correct */
+   result = (a * b) >> FP_SHIFT;
+
+   /* Wrong - may overflow before shift */
+   result = a * b >> FP_SHIFT;  /* Operator precedence issue */
+   ```
+
+5. **Angle wraparound**: PS1 angles use 12-bit precision (0-4095). They naturally
+   wrap, but be careful with comparisons and interpolation.
+
 ## Notes
 
 - The PS1 GTE handles perspective projection automatically
 - Matrices use **row-major** storage (m[row][col])
 - Near/far clipping is done in software using Z values
 - The ordering table handles depth sorting for correct overlap
+- All trig functions return fixed-point values (multiply by 4096)
+- For orbit cameras, the camera looks AT the target after positioning

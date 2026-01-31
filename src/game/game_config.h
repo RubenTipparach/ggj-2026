@@ -13,17 +13,17 @@
 *============================================================================*/
 
 /* Movement speed (world units per frame) */
-#define PLAYER_MOVE_SPEED       5000
+#define PLAYER_MOVE_SPEED       30000
 
 /* Turn/rotation speed (angle units per frame, 4096 = 360 degrees) */
-#define PLAYER_TURN_SPEED       200
+#define PLAYER_TURN_SPEED       96
 
 /*============================================================================
 * CHARACTER ANIMATION
 *============================================================================*/
 
 /* Walk cycle animation speed (higher = faster leg/arm movement) */
-#define WALK_CYCLE_SPEED        100
+#define WALK_CYCLE_SPEED        300
 
 /* Arm swing amplitude (angle units, max rotation from neutral) */
 #define ARM_SWING_ANGLE         200
@@ -35,7 +35,12 @@
 #define LIMB_RETURN_SPEED       20
 
 /* Body squash amount during walk (0-4096, where 4096 = 100% squash) */
-#define BODY_SQUASH_AMOUNT      150
+#define BODY_SQUASH_AMOUNT      250
+
+/* Idle breathing animation */
+#define IDLE_BREATH_SPEED       30      /* How fast the breathing cycle runs */
+#define IDLE_BREATH_AMOUNT      100      /* Body squash amount for breathing */
+#define IDLE_HEAD_BOB           8       /* Subtle head movement amplitude */
 
 /*============================================================================
 * CAMERA
@@ -45,10 +50,10 @@
 #define CAMERA_DISTANCE         250
 
 /* Camera follow smoothing (higher = slower/smoother, 1 = instant) */
-#define CAMERA_FOLLOW_DIVISOR   8
+#define CAMERA_FOLLOW_DIVISOR   16
 
 /* Camera Y offset (vertical position relative to character, positive = above) */
-#define CAMERA_Y_OFFSET        40
+#define CAMERA_Y_OFFSET        50
 
 /*============================================================================
 * INPUT
@@ -56,6 +61,39 @@
 
 /* Analog stick deadzone (0-127 range) */
 #define ANALOG_DEADZONE         20
+
+/*============================================================================
+* WORLD OBJECTS
+*============================================================================*/
+
+/* House scale multiplier (2048 = 0.5x, 6144 = 1.5x, 4096 = 1.0x, 8192 = 2.0x, etc.) */
+#define HOUSE_SCALE  3596
+
+/*============================================================================
+* FLOOR / TERRAIN
+*============================================================================*/
+
+/* Size of each floor tile in world units */
+#define FLOOR_TILE_SIZE  256
+
+/* Number of tiles in each direction from center */
+#define FLOOR_GRID_SIZE  8
+
+/* Y position of floor (below character) */
+#define FLOOR_Y          80
+
+/* Floor grass colors (hex: 0c5c67, 12916b, 0b2458) */
+#define GRASS_COLOR_1_R  12
+#define GRASS_COLOR_1_G  92
+#define GRASS_COLOR_1_B  103
+
+#define GRASS_COLOR_2_R  18
+#define GRASS_COLOR_2_G  145
+#define GRASS_COLOR_2_B  107
+
+#define GRASS_COLOR_3_R  11
+#define GRASS_COLOR_3_G  36
+#define GRASS_COLOR_3_B  88
 
 /*============================================================================
 * VISUAL EFFECTS
