@@ -8,6 +8,7 @@
 #include <stdbool.h>
 #include "model.h"
 #include "gpu.h"
+#include "camera.h"
 
 /* Character body part indices */
 #define PART_BODY      0
@@ -62,8 +63,8 @@ bool initCharacter(Character *chr,
 /* Update character animation based on movement */
 void updateCharacter(Character *chr, int16_t moveX, int16_t moveZ);
 
-/* Draw character to DMA chain */
-void drawCharacter(DMAChain *chain, Character *chr, int32_t cameraX, int32_t cameraY, int32_t cameraZ, int16_t cameraAngle);
+/* Draw character to DMA chain (uses camera's view matrix for proper 3D transform) */
+void drawCharacter(DMAChain *chain, Character *chr, const Camera *cam);
 
 #ifdef __cplusplus
 }

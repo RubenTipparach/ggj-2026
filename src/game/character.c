@@ -8,6 +8,7 @@
 #include "character.h"
 #include "model.h"
 #include "gpu.h"
+#include "camera.h"
 #include "transform.h"
 #include "trig.h"
 #include "game_config.h"
@@ -178,7 +179,8 @@ void updateCharacter(Character *chr, int16_t moveX, int16_t moveZ) {
 
 	/* Calculate limb rotations based on walk cycle */
 	if (chr->isWalking) {
-		/* Sine wave for smooth oscillation */
+		/* Sine wave for smooth oscillation
+		 * walkCycle and isin both use 4096 = full cycle */
 		int swing = isin(chr->walkCycle);  /* Returns -ONE to +ONE */
 
 		/* Arms swing opposite to legs */
@@ -329,25 +331,26 @@ static void drawBodyPart(DMAChain *chain, const Model *model,
 	}
 }
 
-void drawCharacter(DMAChain *chain, Character *chr,
-	int32_t cameraX, int32_t cameraY, int32_t cameraZ, int16_t cameraAngle)
+void drawCharacter(DMAChain *chain, Character *chr, const Camera *cam)
 {
 	/* Calculate character position relative to camera (in world space) */
-	int32_t relX = (chr->x >> 12) - cameraX;
-	int32_t relY = (chr->y >> 12) - cameraY;
-	int32_t relZ = (chr->z >> 12) - cameraZ;
+	int32_t relX = (chr->x >> 12) - cam->x;
+	int32_t relY = (chr->y >> 12) - cam->y;
+	int32_t relZ = (chr->z >> 12) - cam->z;
 
-	/* Rotate character position into camera view space */
-	int16_t viewAngle = -cameraAngle;
-	int32_t cosAngle = icos(viewAngle);
-	int32_t sinAngle = isin(viewAngle);
-
-	int32_t viewX = ((relX * cosAngle) - (relZ * sinAngle)) >> 12;
-	int32_t viewZ = ((relX * sinAngle) + (relZ * cosAngle)) >> 12;
+	/* Apply camera's full view rotation matrix (includes both pitch and yaw) */
+	int32_t viewX = ((int32_t)cam->viewRotation.m[0][0] * relX +
+	                 (int32_t)cam->viewRotation.m[0][1] * relY +
+	                 (int32_t)cam->viewRotation.m[0][2] * relZ) >> FP_SHIFT;
+	int32_t viewY = ((int32_t)cam->viewRotation.m[1][0] * relX +
+	                 (int32_t)cam->viewRotation.m[1][1] * relY +
+	                 (int32_t)cam->viewRotation.m[1][2] * relZ) >> FP_SHIFT;
+	int32_t viewZ = ((int32_t)cam->viewRotation.m[2][0] * relX +
+	                 (int32_t)cam->viewRotation.m[2][1] * relY +
+	                 (int32_t)cam->viewRotation.m[2][2] * relZ) >> FP_SHIFT;
 
 	/* Character facing adjusted for camera rotation */
-	/* Since we're rotating the view by -cameraAngle, adjust character facing accordingly */
-	int16_t adjustedFacing = chr->facing - cameraAngle;
+	int16_t adjustedFacing = chr->facing - cam->yaw;
 
 	/* Calculate body squash scale (squash Y, stretch XZ to preserve volume) */
 	int16_t bodyScaleY = ONE - chr->bodySquash;  /* Squash in Y */
@@ -366,7 +369,7 @@ void drawCharacter(DMAChain *chain, Character *chr,
 		chr->partRotX[PART_BODY],
 		chr->partRotY[PART_BODY],
 		chr->partRotZ[PART_BODY],
-		viewX, relY, viewZ, adjustedFacing,
+		viewX, viewY, viewZ, adjustedFacing,
 		bodyScaleXZ, bodyScaleY, bodyScaleXZ);
 
 	/* Draw head (no scale, but compensate offset for body squash) */
@@ -377,7 +380,7 @@ void drawCharacter(DMAChain *chain, Character *chr,
 		chr->partRotX[PART_HEAD],
 		chr->partRotY[PART_HEAD],
 		chr->partRotZ[PART_HEAD],
-		viewX, relY, viewZ, adjustedFacing,
+		viewX, viewY, viewZ, adjustedFacing,
 		ONE, ONE, ONE);
 
 	/* Draw arms (no scale, but compensate offset for body squash) */
@@ -388,7 +391,7 @@ void drawCharacter(DMAChain *chain, Character *chr,
 		chr->partRotX[PART_ARM_LEFT],
 		chr->partRotY[PART_ARM_LEFT],
 		chr->partRotZ[PART_ARM_LEFT],
-		viewX, relY, viewZ, adjustedFacing,
+		viewX, viewY, viewZ, adjustedFacing,
 		ONE, ONE, ONE);
 
 	drawBodyPart(chain, &chr->parts[PART_ARM_RIGHT],
@@ -398,7 +401,7 @@ void drawCharacter(DMAChain *chain, Character *chr,
 		chr->partRotX[PART_ARM_RIGHT],
 		chr->partRotY[PART_ARM_RIGHT],
 		chr->partRotZ[PART_ARM_RIGHT],
-		viewX, relY, viewZ, adjustedFacing,
+		viewX, viewY, viewZ, adjustedFacing,
 		ONE, ONE, ONE);
 
 	/* Draw legs (no scale, legs attach below body so no compensation needed) */
@@ -409,7 +412,7 @@ void drawCharacter(DMAChain *chain, Character *chr,
 		chr->partRotX[PART_LEG_LEFT],
 		chr->partRotY[PART_LEG_LEFT],
 		chr->partRotZ[PART_LEG_LEFT],
-		viewX, relY, viewZ, adjustedFacing,
+		viewX, viewY, viewZ, adjustedFacing,
 		ONE, ONE, ONE);
 
 	drawBodyPart(chain, &chr->parts[PART_LEG_RIGHT],
@@ -419,6 +422,6 @@ void drawCharacter(DMAChain *chain, Character *chr,
 		chr->partRotX[PART_LEG_RIGHT],
 		chr->partRotY[PART_LEG_RIGHT],
 		chr->partRotZ[PART_LEG_RIGHT],
-		viewX, relY, viewZ, adjustedFacing,
+		viewX, viewY, viewZ, adjustedFacing,
 		ONE, ONE, ONE);
 }

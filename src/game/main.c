@@ -19,6 +19,7 @@
 #include "ps1/registers.h"
 #include "trig.h"
 #include "transform.h"
+#include "camera.h"
 #include "game_config.h"
 
 /* Floor settings */
@@ -101,7 +102,7 @@ static void setupGTE(int width, int height) {
 }
 
 /* Draw a checkerboard floor for parallax reference */
-static void drawFloor(DMAChain *chain, int32_t camX, int32_t camY, int32_t camZ, int16_t cameraAngle) {
+static void drawFloor(DMAChain *chain, const Camera *cam) {
 	/* Set up identity rotation matrix (we rotate manually) */
 	gte_setRotationMatrix(
 		ONE, 0, 0,
@@ -109,14 +110,9 @@ static void drawFloor(DMAChain *chain, int32_t camX, int32_t camY, int32_t camZ,
 		0, 0, ONE
 	);
 
-	/* Pre-calculate rotation values for manual vertex rotation */
-	int16_t viewAngle = -cameraAngle;
-	int32_t cosAngle = icos(viewAngle);
-	int32_t sinAngle = isin(viewAngle);
-
 	/* Calculate which tiles are visible based on camera position */
-	int baseTileX = camX / FLOOR_TILE_SIZE;
-	int baseTileZ = camZ / FLOOR_TILE_SIZE;
+	int baseTileX = cam->x / FLOOR_TILE_SIZE;
+	int baseTileZ = cam->z / FLOOR_TILE_SIZE;
 
 	/* Draw grid of floor tiles */
 	for (int tz = -FLOOR_GRID_SIZE; tz < FLOOR_GRID_SIZE; tz++) {
@@ -125,17 +121,11 @@ static void drawFloor(DMAChain *chain, int32_t camX, int32_t camY, int32_t camZ,
 			int tileZ = baseTileZ + tz;
 
 			/* Calculate world position of tile corners relative to camera */
-			int32_t x0 = tileX * FLOOR_TILE_SIZE - camX;
+			int32_t x0 = tileX * FLOOR_TILE_SIZE - cam->x;
 			int32_t x1 = x0 + FLOOR_TILE_SIZE;
-			int32_t z0 = tileZ * FLOOR_TILE_SIZE - camZ;
+			int32_t z0 = tileZ * FLOOR_TILE_SIZE - cam->z;
 			int32_t z1 = z0 + FLOOR_TILE_SIZE;
-			int32_t y = FLOOR_Y - camY;
-
-			/* Skip tiles behind camera */
-			if (z0 < 10 && z1 < 10) continue;
-			/* Clamp near plane */
-			if (z0 < 10) z0 = 10;
-			if (z1 < 10) z1 = 10;
+			int32_t y = FLOOR_Y - cam->y;
 
 			/* Checkerboard pattern based on tile coordinates */
 			int isWhite = ((tileX + tileZ) & 1);
@@ -151,24 +141,59 @@ static void drawFloor(DMAChain *chain, int32_t camX, int32_t camY, int32_t camZ,
 			gte_setControlReg(GTE_TRY, 0);
 			gte_setControlReg(GTE_TRZ, 0);
 
-			/* Manually rotate floor vertices into camera view space */
-			int32_t vx0 = ((x0 * cosAngle) - (z0 * sinAngle)) >> 12;
-			int32_t vz0 = ((x0 * sinAngle) + (z0 * cosAngle)) >> 12;
+			/* Transform floor vertices using camera's full view rotation matrix */
+			/* Corner 0 (x0, y, z0) */
+			int32_t vx0 = ((int32_t)cam->viewRotation.m[0][0] * x0 +
+			               (int32_t)cam->viewRotation.m[0][1] * y +
+			               (int32_t)cam->viewRotation.m[0][2] * z0) >> FP_SHIFT;
+			int32_t vy0 = ((int32_t)cam->viewRotation.m[1][0] * x0 +
+			               (int32_t)cam->viewRotation.m[1][1] * y +
+			               (int32_t)cam->viewRotation.m[1][2] * z0) >> FP_SHIFT;
+			int32_t vz0 = ((int32_t)cam->viewRotation.m[2][0] * x0 +
+			               (int32_t)cam->viewRotation.m[2][1] * y +
+			               (int32_t)cam->viewRotation.m[2][2] * z0) >> FP_SHIFT;
 
-			int32_t vx1 = ((x1 * cosAngle) - (z0 * sinAngle)) >> 12;
-			int32_t vz1 = ((x1 * sinAngle) + (z0 * cosAngle)) >> 12;
+			/* Corner 1 (x1, y, z0) */
+			int32_t vx1 = ((int32_t)cam->viewRotation.m[0][0] * x1 +
+			               (int32_t)cam->viewRotation.m[0][1] * y +
+			               (int32_t)cam->viewRotation.m[0][2] * z0) >> FP_SHIFT;
+			int32_t vy1 = ((int32_t)cam->viewRotation.m[1][0] * x1 +
+			               (int32_t)cam->viewRotation.m[1][1] * y +
+			               (int32_t)cam->viewRotation.m[1][2] * z0) >> FP_SHIFT;
+			int32_t vz1 = ((int32_t)cam->viewRotation.m[2][0] * x1 +
+			               (int32_t)cam->viewRotation.m[2][1] * y +
+			               (int32_t)cam->viewRotation.m[2][2] * z0) >> FP_SHIFT;
 
-			int32_t vx2 = ((x1 * cosAngle) - (z1 * sinAngle)) >> 12;
-			int32_t vz2 = ((x1 * sinAngle) + (z1 * cosAngle)) >> 12;
+			/* Corner 2 (x1, y, z1) */
+			int32_t vx2 = ((int32_t)cam->viewRotation.m[0][0] * x1 +
+			               (int32_t)cam->viewRotation.m[0][1] * y +
+			               (int32_t)cam->viewRotation.m[0][2] * z1) >> FP_SHIFT;
+			int32_t vy2 = ((int32_t)cam->viewRotation.m[1][0] * x1 +
+			               (int32_t)cam->viewRotation.m[1][1] * y +
+			               (int32_t)cam->viewRotation.m[1][2] * z1) >> FP_SHIFT;
+			int32_t vz2 = ((int32_t)cam->viewRotation.m[2][0] * x1 +
+			               (int32_t)cam->viewRotation.m[2][1] * y +
+			               (int32_t)cam->viewRotation.m[2][2] * z1) >> FP_SHIFT;
 
-			int32_t vx3 = ((x0 * cosAngle) - (z1 * sinAngle)) >> 12;
-			int32_t vz3 = ((x0 * sinAngle) + (z1 * cosAngle)) >> 12;
+			/* Corner 3 (x0, y, z1) */
+			int32_t vx3 = ((int32_t)cam->viewRotation.m[0][0] * x0 +
+			               (int32_t)cam->viewRotation.m[0][1] * y +
+			               (int32_t)cam->viewRotation.m[0][2] * z1) >> FP_SHIFT;
+			int32_t vy3 = ((int32_t)cam->viewRotation.m[1][0] * x0 +
+			               (int32_t)cam->viewRotation.m[1][1] * y +
+			               (int32_t)cam->viewRotation.m[1][2] * z1) >> FP_SHIFT;
+			int32_t vz3 = ((int32_t)cam->viewRotation.m[2][0] * x0 +
+			               (int32_t)cam->viewRotation.m[2][1] * y +
+			               (int32_t)cam->viewRotation.m[2][2] * z1) >> FP_SHIFT;
+
+			/* Skip tiles behind camera (check in view space) */
+			if (vz0 < 10 && vz1 < 10 && vz2 < 10 && vz3 < 10) continue;
 
 			/* Transform 4 corners of tile with rotated coordinates */
-			GTEVector16 v0 = {vx0, y, vz0, 0};
-			GTEVector16 v1 = {vx1, y, vz1, 0};
-			GTEVector16 v2 = {vx2, y, vz2, 0};
-			GTEVector16 v3 = {vx3, y, vz3, 0};
+			GTEVector16 v0 = {vx0, vy0, vz0, 0};
+			GTEVector16 v1 = {vx1, vy1, vz1, 0};
+			GTEVector16 v2 = {vx2, vy2, vz2, 0};
+			GTEVector16 v3 = {vx3, vy3, vz3, 0};
 
 			/* Triangle 1: v0, v1, v2 */
 			gte_loadV0(&v0);
@@ -408,11 +433,10 @@ int main(int argc, const char **argv) {
 	DMAChain dmaChains[2];
 	bool     usingSecondFrame = false;
 
-	/* Camera position (follows player smoothly) */
-	int32_t cameraX = 0;
-	int32_t cameraY = 0;
-	int32_t cameraZ = 0;
-	int16_t cameraAngle = 0;  /* Camera facing angle (follows character) */
+	/* Camera setup */
+	Camera cam;
+	cameraInit(&cam, 0, -CAMERA_Y_OFFSET, -CAMERA_DISTANCE);
+	int16_t orbitAngle = 0;  /* Orbit angle around character */
 
 	/* Track previous button state for edge detection */
 	uint16_t prevButtons = 0;
@@ -487,51 +511,31 @@ int main(int argc, const char **argv) {
 		updateCDDA();
 
 		/* Manual camera rotation with L1/R1 bumpers */
-		if (pad.buttons & PAD_L1) {  /* L1 bumper */
-			cameraAngle -= 40;  /* Rotate left */
-			printf("L1 pressed - Camera angle: %d (%d deg)\n", cameraAngle, (cameraAngle * 360) / 4096);
+		if (pad.buttons & PAD_L1) {
+			orbitAngle -= 40;  /* Rotate left */
 		}
-		if (pad.buttons & PAD_R1) {  /* R1 bumper */
-			cameraAngle += 40;  /* Rotate right */
-			printf("R1 pressed - Camera angle: %d (%d deg)\n", cameraAngle, (cameraAngle * 360) / 4096);
+		if (pad.buttons & PAD_R1) {
+			orbitAngle += 40;  /* Rotate right */
 		}
 
-		/* Debug: show all button presses */
-		static uint16_t lastButtons = 0;
-		if (pad.buttons != lastButtons && pad.buttons != 0) {
-			printf("Buttons: 0x%04X (L1=%d L2=%d R1=%d R2=%d)\n",
-				pad.buttons,
-				(pad.buttons & PAD_L1) ? 1 : 0,
-				(pad.buttons & PAD_L2) ? 1 : 0,
-				(pad.buttons & PAD_R1) ? 1 : 0,
-				(pad.buttons & PAD_R2) ? 1 : 0);
-			lastButtons = pad.buttons;
-		}
+		/* Keep orbit angle in valid range */
+		while (orbitAngle > 2048) orbitAngle -= 4096;
+		while (orbitAngle < -2048) orbitAngle += 4096;
 
-		/* Keep camera angle in valid range */
-		while (cameraAngle > 2048) cameraAngle -= 4096;
-		while (cameraAngle < -2048) cameraAngle += 4096;
+		/* Get player position in world units */
+		int32_t playerWorldX = player.x >> 12;
+		int32_t playerWorldY = player.y >> 12;
+		int32_t playerWorldZ = player.z >> 12;
 
-		/* Calculate camera position: orbit around player at current angle */
-		/* Camera looks at player from behind and slightly above */
-		int32_t camOffsetX = (icos(cameraAngle) * CAMERA_DISTANCE) >> 12;
-		int32_t camOffsetZ = (isin(cameraAngle) * CAMERA_DISTANCE) >> 12;
-
-		/* Camera world position */
-		int32_t targetCamX = (player.x >> 12) + camOffsetX;
-		int32_t targetCamZ = (player.z >> 12) + camOffsetZ;
-		int32_t targetCamY = -CAMERA_Y_OFFSET;  /* Negate to make positive = up */
-
-		/* Smooth camera follow (lerp) */
-		cameraX += (targetCamX - cameraX) / CAMERA_FOLLOW_DIVISOR;
-		cameraY += (targetCamY - cameraY) / CAMERA_FOLLOW_DIVISOR;
-		cameraZ += (targetCamZ - cameraZ) / CAMERA_FOLLOW_DIVISOR;
+		/* Update camera to orbit around player */
+		cameraOrbit(&cam, playerWorldX, playerWorldY, playerWorldZ,
+		            orbitAngle, CAMERA_DISTANCE, -CAMERA_Y_OFFSET);
 
 		/* Draw floor for parallax reference */
-		drawFloor(chain, cameraX, cameraY, cameraZ, cameraAngle);
+		drawFloor(chain, &cam);
 
 		/* Draw character */
-		drawCharacter(chain, &player, cameraX, cameraY, cameraZ, cameraAngle);
+		drawCharacter(chain, &player, &cam);
 
 		/* Calculate gradient colors */
 		int topR = BG_TOP_R + ((BG_FLASH_TOP_R - BG_TOP_R) * bgFlash) / 255;
@@ -560,7 +564,7 @@ int main(int argc, const char **argv) {
 
 		/* Display debug info: camera angle and player facing */
 		char debugText[64];
-		int camDeg = (cameraAngle * 360) / 4096;
+		int camDeg = (cam.yaw * 360) / 4096;
 		int playerDeg = (player.facing * 360) / 4096;
 		sprintf(debugText, "Cam: %d deg  Player: %d deg", camDeg, playerDeg);
 		printString(chain, &font, 8, 8, debugText);

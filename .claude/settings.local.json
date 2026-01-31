@@ -89,7 +89,8 @@
       "Bash(git mv:*)",
       "Bash(cmd.exe /c \"cd /d c:\\Users\\santi\\repos\\ggj-2026 && build.bat\")",
       "Bash(c:Userssantireposggj-2026build.bat)",
-      "Bash(test:*)"
+      "Bash(test:*)",
+      "Bash(cd:*)"
     ]
   }
 }

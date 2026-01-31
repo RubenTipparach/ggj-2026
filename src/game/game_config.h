@@ -42,13 +42,13 @@
 *============================================================================*/
 
 /* Base distance from camera to character (lower = more zoomed in) */
-#define CAMERA_DISTANCE         180
+#define CAMERA_DISTANCE         250
 
 /* Camera follow smoothing (higher = slower/smoother, 1 = instant) */
 #define CAMERA_FOLLOW_DIVISOR   8
 
 /* Camera Y offset (vertical position relative to character, positive = above) */
-#define CAMERA_Y_OFFSET         100
+#define CAMERA_Y_OFFSET        40
 
 /*============================================================================
 * INPUT

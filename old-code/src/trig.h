@@ -17,12 +17,6 @@ extern "C" {
 int isin(int x);
 int isin2(int x);
 
-/* Integer atan2 approximation - returns angle in PS1 units (0-4095 = 0-360 deg) */
-int iatan2(int y, int x);
-
-/* Integer square root */
-int isqrt(int x);
-
 static inline int icos(int x) {
 	return isin(x + (1 << ISIN_SHIFT));
 }

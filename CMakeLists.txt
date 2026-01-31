@@ -184,6 +184,7 @@ addPS1Executable(
 	src/engine/cdda.c
 	src/engine/transform.c
 	src/engine/trig.c
+	src/engine/camera.c
 	# Game modules
 	src/game/character.c
 	src/game/main.c
