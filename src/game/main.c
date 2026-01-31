@@ -101,13 +101,18 @@ static void setupGTE(int width, int height) {
 }
 
 /* Draw a checkerboard floor for parallax reference */
-static void drawFloor(DMAChain *chain, int32_t camX, int32_t camY, int32_t camZ) {
-	/* Set up identity rotation matrix and camera translation */
+static void drawFloor(DMAChain *chain, int32_t camX, int32_t camY, int32_t camZ, int16_t cameraAngle) {
+	/* Set up identity rotation matrix (we rotate manually) */
 	gte_setRotationMatrix(
 		ONE, 0, 0,
 		0, ONE, 0,
 		0, 0, ONE
 	);
+
+	/* Pre-calculate rotation values for manual vertex rotation */
+	int16_t viewAngle = -cameraAngle;
+	int32_t cosAngle = icos(viewAngle);
+	int32_t sinAngle = isin(viewAngle);
 
 	/* Calculate which tiles are visible based on camera position */
 	int baseTileX = camX / FLOOR_TILE_SIZE;
@@ -119,10 +124,10 @@ static void drawFloor(DMAChain *chain, int32_t camX, int32_t camY, int32_t camZ)
 			int tileX = baseTileX + tx;
 			int tileZ = baseTileZ + tz;
 
-			/* Calculate world position of tile corners */
+			/* Calculate world position of tile corners relative to camera */
 			int32_t x0 = tileX * FLOOR_TILE_SIZE - camX;
 			int32_t x1 = x0 + FLOOR_TILE_SIZE;
-			int32_t z0 = tileZ * FLOOR_TILE_SIZE - camZ + CAMERA_DISTANCE;
+			int32_t z0 = tileZ * FLOOR_TILE_SIZE - camZ;
 			int32_t z1 = z0 + FLOOR_TILE_SIZE;
 			int32_t y = FLOOR_Y - camY;
 
@@ -146,11 +151,24 @@ static void drawFloor(DMAChain *chain, int32_t camX, int32_t camY, int32_t camZ)
 			gte_setControlReg(GTE_TRY, 0);
 			gte_setControlReg(GTE_TRZ, 0);
 
-			/* Transform 4 corners of tile */
-			GTEVector16 v0 = {x0, y, z0, 0};
-			GTEVector16 v1 = {x1, y, z0, 0};
-			GTEVector16 v2 = {x1, y, z1, 0};
-			GTEVector16 v3 = {x0, y, z1, 0};
+			/* Manually rotate floor vertices into camera view space */
+			int32_t vx0 = ((x0 * cosAngle) - (z0 * sinAngle)) >> 12;
+			int32_t vz0 = ((x0 * sinAngle) + (z0 * cosAngle)) >> 12;
+
+			int32_t vx1 = ((x1 * cosAngle) - (z0 * sinAngle)) >> 12;
+			int32_t vz1 = ((x1 * sinAngle) + (z0 * cosAngle)) >> 12;
+
+			int32_t vx2 = ((x1 * cosAngle) - (z1 * sinAngle)) >> 12;
+			int32_t vz2 = ((x1 * sinAngle) + (z1 * cosAngle)) >> 12;
+
+			int32_t vx3 = ((x0 * cosAngle) - (z1 * sinAngle)) >> 12;
+			int32_t vz3 = ((x0 * sinAngle) + (z1 * cosAngle)) >> 12;
+
+			/* Transform 4 corners of tile with rotated coordinates */
+			GTEVector16 v0 = {vx0, y, vz0, 0};
+			GTEVector16 v1 = {vx1, y, vz1, 0};
+			GTEVector16 v2 = {vx2, y, vz2, 0};
+			GTEVector16 v3 = {vx3, y, vz3, 0};
 
 			/* Triangle 1: v0, v1, v2 */
 			gte_loadV0(&v0);
@@ -338,10 +356,10 @@ int main(int argc, const char **argv) {
 		&font,
 		fontTexture,
 		fontPalette,
-		SCREEN_WIDTH * 2,
-		0,
-		SCREEN_WIDTH * 2,
-		FONT_HEIGHT,
+		SCREEN_WIDTH * 2,          /* Image X */
+		0,                         /* Image Y */
+		SCREEN_WIDTH * 2,          /* Palette X */
+		FONT_HEIGHT,               /* Palette Y (below font image) */
 		FONT_WIDTH,
 		FONT_HEIGHT,
 		FONT_COLOR_DEPTH
@@ -394,6 +412,7 @@ int main(int argc, const char **argv) {
 	int32_t cameraX = 0;
 	int32_t cameraY = 0;
 	int32_t cameraZ = 0;
+	int16_t cameraAngle = 0;  /* Camera facing angle (follows character) */
 
 	/* Track previous button state for edge detection */
 	uint16_t prevButtons = 0;
@@ -467,19 +486,52 @@ int main(int argc, const char **argv) {
 		/* Update CD-DA looping */
 		updateCDDA();
 
-		/* Camera follows player smoothly */
-		int32_t targetCamX = player.x >> 12;
-		int32_t targetCamZ = player.z >> 12;
+		/* Manual camera rotation with L1/R1 bumpers */
+		if (pad.buttons & PAD_L1) {  /* L1 bumper */
+			cameraAngle -= 40;  /* Rotate left */
+			printf("L1 pressed - Camera angle: %d (%d deg)\n", cameraAngle, (cameraAngle * 360) / 4096);
+		}
+		if (pad.buttons & PAD_R1) {  /* R1 bumper */
+			cameraAngle += 40;  /* Rotate right */
+			printf("R1 pressed - Camera angle: %d (%d deg)\n", cameraAngle, (cameraAngle * 360) / 4096);
+		}
+
+		/* Debug: show all button presses */
+		static uint16_t lastButtons = 0;
+		if (pad.buttons != lastButtons && pad.buttons != 0) {
+			printf("Buttons: 0x%04X (L1=%d L2=%d R1=%d R2=%d)\n",
+				pad.buttons,
+				(pad.buttons & PAD_L1) ? 1 : 0,
+				(pad.buttons & PAD_L2) ? 1 : 0,
+				(pad.buttons & PAD_R1) ? 1 : 0,
+				(pad.buttons & PAD_R2) ? 1 : 0);
+			lastButtons = pad.buttons;
+		}
+
+		/* Keep camera angle in valid range */
+		while (cameraAngle > 2048) cameraAngle -= 4096;
+		while (cameraAngle < -2048) cameraAngle += 4096;
+
+		/* Calculate camera position: orbit around player at current angle */
+		/* Camera looks at player from behind and slightly above */
+		int32_t camOffsetX = (icos(cameraAngle) * CAMERA_DISTANCE) >> 12;
+		int32_t camOffsetZ = (isin(cameraAngle) * CAMERA_DISTANCE) >> 12;
+
+		/* Camera world position */
+		int32_t targetCamX = (player.x >> 12) + camOffsetX;
+		int32_t targetCamZ = (player.z >> 12) + camOffsetZ;
+		int32_t targetCamY = -CAMERA_Y_OFFSET;  /* Negate to make positive = up */
 
 		/* Smooth camera follow (lerp) */
 		cameraX += (targetCamX - cameraX) / CAMERA_FOLLOW_DIVISOR;
+		cameraY += (targetCamY - cameraY) / CAMERA_FOLLOW_DIVISOR;
 		cameraZ += (targetCamZ - cameraZ) / CAMERA_FOLLOW_DIVISOR;
 
 		/* Draw floor for parallax reference */
-		drawFloor(chain, cameraX, cameraY, cameraZ);
+		drawFloor(chain, cameraX, cameraY, cameraZ, cameraAngle);
 
 		/* Draw character */
-		drawCharacter(chain, &player, cameraX, cameraY, cameraZ);
+		drawCharacter(chain, &player, cameraX, cameraY, cameraZ, cameraAngle);
 
 		/* Calculate gradient colors */
 		int topR = BG_TOP_R + ((BG_FLASH_TOP_R - BG_TOP_R) * bgFlash) / 255;
@@ -505,6 +557,13 @@ int main(int argc, const char **argv) {
 		ptr[3] = gp0_xy(SCREEN_WIDTH, SCREEN_HEIGHT);
 		ptr[4] = gp0_rgb(botR, botG, botB);
 		ptr[5] = gp0_xy(0, SCREEN_HEIGHT);
+
+		/* Display debug info: camera angle and player facing */
+		char debugText[64];
+		int camDeg = (cameraAngle * 360) / 4096;
+		int playerDeg = (player.facing * 360) / 4096;
+		sprintf(debugText, "Cam: %d deg  Player: %d deg", camDeg, playerDeg);
+		printString(chain, &font, 8, 8, debugText);
 
 		/* Set drawing area attributes */
 		ptr    = allocatePacket(chain, ORDERING_TABLE_SIZE - 1, 4);

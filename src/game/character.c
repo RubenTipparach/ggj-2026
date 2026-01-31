@@ -33,6 +33,7 @@ bool initCharacter(Character *chr,
 	chr->targetFacing = 0;
 	chr->isWalking = false;
 	chr->walkCycle = 0;
+	chr->bodySquash = 0;
 
 	/* Load body parts (using character model loader with vertex colors) */
 	if (!loadCharacterModel(&chr->parts[PART_BODY], bodyData, bodySize)) {
@@ -191,6 +192,12 @@ void updateCharacter(Character *chr, int16_t moveX, int16_t moveZ) {
 		/* Legs swing opposite to arms */
 		chr->partRotX[PART_LEG_LEFT] = -legSwing;
 		chr->partRotX[PART_LEG_RIGHT] = legSwing;
+
+		/* Body squash: use absolute value of sine for squash at foot contact */
+		/* Double frequency for squash (squash twice per walk cycle) */
+		int squashWave = isin(chr->walkCycle * 2);
+		squashWave = (squashWave < 0) ? -squashWave : squashWave;  /* Abs value */
+		chr->bodySquash = (squashWave * BODY_SQUASH_AMOUNT) / ONE;
 	} else {
 		/* Return to neutral pose */
 		for (int i = PART_ARM_LEFT; i <= PART_LEG_RIGHT; i++) {
@@ -202,6 +209,12 @@ void updateCharacter(Character *chr, int16_t moveX, int16_t moveZ) {
 				if (chr->partRotX[i] > 0) chr->partRotX[i] = 0;
 			}
 		}
+
+		/* Return body squash to neutral */
+		if (chr->bodySquash > 0) {
+			chr->bodySquash -= LIMB_RETURN_SPEED;
+			if (chr->bodySquash < 0) chr->bodySquash = 0;
+		}
 	}
 }
 
@@ -210,7 +223,8 @@ static void drawBodyPart(DMAChain *chain, const Model *model,
 	int32_t offsetX, int32_t offsetY, int32_t offsetZ,
 	int16_t localPitch, int16_t localYaw, int16_t localRoll,
 	int32_t baseX, int32_t baseY, int32_t baseZ,
-	int16_t parentYaw)
+	int16_t parentYaw,
+	int16_t scaleX, int16_t scaleY, int16_t scaleZ)  /* Scale in 4.12 fixed point (4096 = 1.0) */
 {
 	/*
 	 * Hierarchical transform using the transform module:
@@ -244,10 +258,33 @@ static void drawBodyPart(DMAChain *chain, const Model *model,
 	for (int i = 0; i < model->numFaces; i++) {
 		const Face *face = &model->faces[i];
 
+		/* Apply scale to vertices if not identity */
+		GTEVector16 v0, v1, v2;
+		if (scaleX != ONE || scaleY != ONE || scaleZ != ONE) {
+			v0.x = (model->vertices[face->v0].x * scaleX) >> 12;
+			v0.y = (model->vertices[face->v0].y * scaleY) >> 12;
+			v0.z = (model->vertices[face->v0].z * scaleZ) >> 12;
+			v0._padding = 0;
+
+			v1.x = (model->vertices[face->v1].x * scaleX) >> 12;
+			v1.y = (model->vertices[face->v1].y * scaleY) >> 12;
+			v1.z = (model->vertices[face->v1].z * scaleZ) >> 12;
+			v1._padding = 0;
+
+			v2.x = (model->vertices[face->v2].x * scaleX) >> 12;
+			v2.y = (model->vertices[face->v2].y * scaleY) >> 12;
+			v2.z = (model->vertices[face->v2].z * scaleZ) >> 12;
+			v2._padding = 0;
+		} else {
+			v0 = model->vertices[face->v0];
+			v1 = model->vertices[face->v1];
+			v2 = model->vertices[face->v2];
+		}
+
 		/* Load vertices into GTE */
-		gte_loadV0(&model->vertices[face->v0]);
-		gte_loadV1(&model->vertices[face->v1]);
-		gte_loadV2(&model->vertices[face->v2]);
+		gte_loadV0(&v0);
+		gte_loadV1(&v1);
+		gte_loadV2(&v2);
 
 		/* Perspective transformation */
 		gte_command(GTE_CMD_RTPT | GTE_SF);
@@ -293,15 +330,35 @@ static void drawBodyPart(DMAChain *chain, const Model *model,
 }
 
 void drawCharacter(DMAChain *chain, Character *chr,
-	int32_t cameraX, int32_t cameraY, int32_t cameraZ)
+	int32_t cameraX, int32_t cameraY, int32_t cameraZ, int16_t cameraAngle)
 {
-	/* Calculate character position relative to camera */
+	/* Calculate character position relative to camera (in world space) */
 	int32_t relX = (chr->x >> 12) - cameraX;
 	int32_t relY = (chr->y >> 12) - cameraY;
-	int32_t relZ = (chr->z >> 12) - cameraZ + CAMERA_DISTANCE;
+	int32_t relZ = (chr->z >> 12) - cameraZ;
+
+	/* Rotate character position into camera view space */
+	int16_t viewAngle = -cameraAngle;
+	int32_t cosAngle = icos(viewAngle);
+	int32_t sinAngle = isin(viewAngle);
+
+	int32_t viewX = ((relX * cosAngle) - (relZ * sinAngle)) >> 12;
+	int32_t viewZ = ((relX * sinAngle) + (relZ * cosAngle)) >> 12;
+
+	/* Character facing adjusted for camera rotation */
+	/* Since we're rotating the view by -cameraAngle, adjust character facing accordingly */
+	int16_t adjustedFacing = chr->facing - cameraAngle;
+
+	/* Calculate body squash scale (squash Y, stretch XZ to preserve volume) */
+	int16_t bodyScaleY = ONE - chr->bodySquash;  /* Squash in Y */
+	int16_t bodyScaleXZ = ONE + (chr->bodySquash / 2);  /* Slight stretch in X and Z */
+
+	/* Calculate Y offset compensation for head and arms (they need to move down when body squashes) */
+	/* The offset change is proportional to how much the body height changed */
+	int16_t yCompensation = (chr->partOffsetY[PART_HEAD] * chr->bodySquash) / ONE;
 
 	/* Draw each body part */
-	/* Draw body first (it's the base) */
+	/* Draw body first (it's the base) with squash */
 	drawBodyPart(chain, &chr->parts[PART_BODY],
 		chr->partOffsetX[PART_BODY],
 		chr->partOffsetY[PART_BODY],
@@ -309,38 +366,42 @@ void drawCharacter(DMAChain *chain, Character *chr,
 		chr->partRotX[PART_BODY],
 		chr->partRotY[PART_BODY],
 		chr->partRotZ[PART_BODY],
-		relX, relY, relZ, chr->facing);
+		viewX, relY, viewZ, adjustedFacing,
+		bodyScaleXZ, bodyScaleY, bodyScaleXZ);
 
-	/* Draw head */
+	/* Draw head (no scale, but compensate offset for body squash) */
 	drawBodyPart(chain, &chr->parts[PART_HEAD],
 		chr->partOffsetX[PART_HEAD],
-		chr->partOffsetY[PART_HEAD],
+		chr->partOffsetY[PART_HEAD] + yCompensation,
 		chr->partOffsetZ[PART_HEAD],
 		chr->partRotX[PART_HEAD],
 		chr->partRotY[PART_HEAD],
 		chr->partRotZ[PART_HEAD],
-		relX, relY, relZ, chr->facing);
+		viewX, relY, viewZ, adjustedFacing,
+		ONE, ONE, ONE);
 
-	/* Draw arms */
+	/* Draw arms (no scale, but compensate offset for body squash) */
 	drawBodyPart(chain, &chr->parts[PART_ARM_LEFT],
 		chr->partOffsetX[PART_ARM_LEFT],
-		chr->partOffsetY[PART_ARM_LEFT],
+		chr->partOffsetY[PART_ARM_LEFT] + yCompensation,
 		chr->partOffsetZ[PART_ARM_LEFT],
 		chr->partRotX[PART_ARM_LEFT],
 		chr->partRotY[PART_ARM_LEFT],
 		chr->partRotZ[PART_ARM_LEFT],
-		relX, relY, relZ, chr->facing);
+		viewX, relY, viewZ, adjustedFacing,
+		ONE, ONE, ONE);
 
 	drawBodyPart(chain, &chr->parts[PART_ARM_RIGHT],
 		chr->partOffsetX[PART_ARM_RIGHT],
-		chr->partOffsetY[PART_ARM_RIGHT],
+		chr->partOffsetY[PART_ARM_RIGHT] + yCompensation,
 		chr->partOffsetZ[PART_ARM_RIGHT],
 		chr->partRotX[PART_ARM_RIGHT],
 		chr->partRotY[PART_ARM_RIGHT],
 		chr->partRotZ[PART_ARM_RIGHT],
-		relX, relY, relZ, chr->facing);
+		viewX, relY, viewZ, adjustedFacing,
+		ONE, ONE, ONE);
 
-	/* Draw legs */
+	/* Draw legs (no scale, legs attach below body so no compensation needed) */
 	drawBodyPart(chain, &chr->parts[PART_LEG_LEFT],
 		chr->partOffsetX[PART_LEG_LEFT],
 		chr->partOffsetY[PART_LEG_LEFT],
@@ -348,7 +409,8 @@ void drawCharacter(DMAChain *chain, Character *chr,
 		chr->partRotX[PART_LEG_LEFT],
 		chr->partRotY[PART_LEG_LEFT],
 		chr->partRotZ[PART_LEG_LEFT],
-		relX, relY, relZ, chr->facing);
+		viewX, relY, viewZ, adjustedFacing,
+		ONE, ONE, ONE);
 
 	drawBodyPart(chain, &chr->parts[PART_LEG_RIGHT],
 		chr->partOffsetX[PART_LEG_RIGHT],
@@ -357,5 +419,6 @@ void drawCharacter(DMAChain *chain, Character *chr,
 		chr->partRotX[PART_LEG_RIGHT],
 		chr->partRotY[PART_LEG_RIGHT],
 		chr->partRotZ[PART_LEG_RIGHT],
-		relX, relY, relZ, chr->facing);
+		viewX, relY, viewZ, adjustedFacing,
+		ONE, ONE, ONE);
 }

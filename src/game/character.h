@@ -30,6 +30,7 @@ typedef struct {
 	/* Movement state */
 	bool isWalking;
 	int16_t walkCycle;  /* Animation timer (0-4095) */
+	int16_t bodySquash; /* Squash/stretch for torso (0 = none, positive = squashed) */
 
 	/* Body part models */
 	Model parts[NUM_BODY_PARTS];
@@ -62,7 +63,7 @@ bool initCharacter(Character *chr,
 void updateCharacter(Character *chr, int16_t moveX, int16_t moveZ);
 
 /* Draw character to DMA chain */
-void drawCharacter(DMAChain *chain, Character *chr, int32_t cameraX, int32_t cameraY, int32_t cameraZ);
+void drawCharacter(DMAChain *chain, Character *chr, int32_t cameraX, int32_t cameraY, int32_t cameraZ, int16_t cameraAngle);
 
 #ifdef __cplusplus
 }

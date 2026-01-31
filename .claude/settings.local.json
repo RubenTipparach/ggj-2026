@@ -86,7 +86,10 @@
       "WebFetch(domain:en.wikipedia.org)",
       "Bash(c:Userssantireposggj-2026build_iso.bat)",
       "Bash(cmd.exe /c \"c:\\\\Users\\\\santi\\\\repos\\\\ggj-2026\\\\build_iso.bat\")",
-      "Bash(git mv:*)"
+      "Bash(git mv:*)",
+      "Bash(cmd.exe /c \"cd /d c:\\Users\\santi\\repos\\ggj-2026 && build.bat\")",
+      "Bash(c:Userssantireposggj-2026build.bat)",
+      "Bash(test:*)"
     ]
   }
 }

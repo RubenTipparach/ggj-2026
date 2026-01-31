@@ -34,6 +34,9 @@
 /* Speed at which limbs return to neutral when stopping */
 #define LIMB_RETURN_SPEED       20
 
+/* Body squash amount during walk (0-4096, where 4096 = 100% squash) */
+#define BODY_SQUASH_AMOUNT      150
+
 /*============================================================================
 * CAMERA
 *============================================================================*/
@@ -44,8 +47,8 @@
 /* Camera follow smoothing (higher = slower/smoother, 1 = instant) */
 #define CAMERA_FOLLOW_DIVISOR   8
 
-/* Camera Y offset (vertical position relative to character) */
-#define CAMERA_Y_OFFSET         0
+/* Camera Y offset (vertical position relative to character, positive = above) */
+#define CAMERA_Y_OFFSET         100
 
 /*============================================================================
 * INPUT
