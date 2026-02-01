@@ -130,7 +130,7 @@ bool initCharacter(Character *chr,
 	return true;
 }
 
-void updateCharacter(Character *chr, int16_t turnInput, int16_t forwardInput, int deltaTime) {
+void updateCharacter(Character *chr, int16_t turnInput, int16_t forwardInput, int deltaTime, int walkCycleSpeed) {
 	/* Handle turning - directly modify facing (scaled by deltaTime) */
 	if (turnInput != 0) {
 		chr->facing += (turnInput * PLAYER_TURN_SPEED * deltaTime) >> 8;
@@ -163,7 +163,7 @@ void updateCharacter(Character *chr, int16_t turnInput, int16_t forwardInput, in
 		chr->z += (baseMovement * deltaTime) >> 8;
 
 		/* Advance walk cycle (scaled by deltaTime) */
-		chr->walkCycle += (WALK_CYCLE_SPEED * deltaTime) >> 8;
+		chr->walkCycle += (walkCycleSpeed * deltaTime) >> 8;
 		if (chr->walkCycle >= 4096) {
 			chr->walkCycle -= 4096;
 		}

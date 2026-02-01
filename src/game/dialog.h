@@ -46,6 +46,40 @@ static const char *MOM_DIALOG =
 	"for our neighbors. Can you please deliver\n"
 	"them for me?";
 
+static const char *MOM_MASK_DIALOG =
+	"Oh by the way, if you can hand out some\n"
+	"magical masks, that would help our people\n"
+	"hide among the crowds and walk freely in\n"
+	"daylight without fear of being taken.\n"
+	"Just make sure the right people get the\n"
+	"right masks.";
+
+static const char *MOM_MORE_FOOD_DIALOG =
+	"Good job delivering that mask!\n"
+	"Here's more food for the next house.";
+
+/*============================================================================
+ * CITIZEN DIALOG
+ *============================================================================*/
+
+static const char *CITIZEN_ACCEPT_FOOD =
+	"Thank you so much for the food!\n"
+	"Here, take this mask. It may help\n"
+	"someone who needs to stay hidden.";
+
+static const char *CITIZEN_REJECT_FOOD =
+	"Sorry, this food isn't for us.\n"
+	"Try one of the other houses.";
+
+static const char *ADULT_ACCEPT_MASK =
+	"A mask! Now I can move freely.\n"
+	"Thank you, little one.\n\n"
+	"Return to mom for more supplies.";
+
+static const char *CITIZEN_GREETING =
+	"Hello there, little one!\n"
+	"Stay safe out there.";
+
 /*============================================================================
  * PLAYER MESSAGES
  *============================================================================*/

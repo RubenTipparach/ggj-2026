@@ -16,10 +16,10 @@
 #define PLAYER_MOVE_SPEED       30000
 
 /* Outdoor speed multiplier (256 = 1.0x, 512 = 2.0x, etc.) */
-#define OUTDOOR_SPEED_MULT      512
+#define OUTDOOR_SPEED_MULT      1024
 
 /* Turn/rotation speed (angle units per frame, 4096 = 360 degrees) */
-#define PLAYER_TURN_SPEED       96
+#define PLAYER_TURN_SPEED       128
 
 /* Starting rotation (0=North, 1024=East, 2048=South, 3072=West) */
 #define PLAYER_START_ROTATION   1024
@@ -37,7 +37,8 @@
 *============================================================================*/
 
 /* Walk cycle animation speed (higher = faster leg/arm movement) */
-#define WALK_CYCLE_SPEED        300
+#define WALK_CYCLE_SPEED            800     /* Outdoor walk cycle */
+#define WALK_CYCLE_SPEED_INTERIOR   300     /* Indoor walk cycle (slower) */
 
 /* Arm swing amplitude (angle units, max rotation from neutral) */
 #define ARM_SWING_ANGLE         200
@@ -64,7 +65,7 @@
 #define CARRY_ARM_BOB_AMOUNT    50      /* Arm bob amplitude when carrying */
 #define CARRY_BOX_OFFSET_Y      -20     /* Box Y offset from body center */
 #define CARRY_BOX_OFFSET_Z      40      /* Box Z offset (forward from body) */
-#define CARRY_BOX_BOB_AMOUNT    8       /* Box bob amplitude during walk */
+#define CARRY_BOX_BOB_AMOUNT    4       /* Box bob amplitude during walk */
 
 /*============================================================================
 * CAMERA
@@ -117,6 +118,11 @@
 /* Food box Y position when on table (negative = up from floor) */
 #define FOOD_BOX_TABLE_Y        40
 
+/* Mask rendering when worn by adults (attached to head) */
+#define MASK_OFFSET_Y           -50     /* Y offset from body center (negative = up toward head) */
+#define MASK_OFFSET_Z           20      /* Z offset (forward from face) */
+#define MASK_SCALE              4096    /* Scale (4096 = 1.0x) - doubled from 2048 */
+
 /* Interaction radius for talking to NPCs / picking up items (world units) */
 #define INTERACT_RADIUS         150
 
@@ -128,6 +134,39 @@
 /* Food box spawn position in restaurant (within floor bounds) */
 #define FOOD_BOX_POS_X          -100
 #define FOOD_BOX_POS_Z          0
+
+/* Number of hiding adults in the game (one per delivery per day) */
+#define NUM_HIDING_ADULTS       3
+
+/* Number of citizens in restaurant */
+#define NUM_RESTAURANT_CITIZENS 2
+
+/* Hiding adult position in restaurant (for DEBUG_CHARACTERS mode) */
+#define HIDING_ADULT_POS_X      200
+#define HIDING_ADULT_POS_Z      0
+#define HIDING_ADULT_POS_Y      0        /* Y offset (negative = higher) */
+
+/* Citizen positions in restaurant */
+#define CITIZEN_0_POS_X         100
+#define CITIZEN_0_POS_Z         0
+#define CITIZEN_0_POS_Y         -10       /* Y offset for citizen 1 model */
+#define CITIZEN_1_POS_X         300
+#define CITIZEN_1_POS_Z         0
+#define CITIZEN_1_POS_Y         -10       /* Y offset for citizen 2 model */
+
+/* Hiding adult position in house interiors (world units) */
+#define HOUSE_ADULT_POS_X       -200
+#define HOUSE_ADULT_POS_Z       0
+#define HOUSE_ADULT_POS_Y       0        /* Y offset */
+
+/* House citizen positions (2 citizens per house) - spread far apart */
+#define NUM_CITIZENS_PER_HOUSE  2
+#define HOUSE_CITIZEN_0_POS_X   100      /* Right side of room */
+#define HOUSE_CITIZEN_0_POS_Z   0
+#define HOUSE_CITIZEN_0_POS_Y   30       /* Y offset for citizen 1 model */
+#define HOUSE_CITIZEN_1_POS_X   -300     /* Left side of room */
+#define HOUSE_CITIZEN_1_POS_Z   0
+#define HOUSE_CITIZEN_1_POS_Y   -10      /* Y offset for citizen 2 model */
 
 /* Door trigger zones per house type (local units, before HOUSE_SCALE) */
 
@@ -366,7 +405,10 @@
 *============================================================================*/
 
 /* Draw collision box wireframes (1 = enabled, 0 = disabled) */
-#define DEBUG_DRAW_COLLISION    1
+#define DEBUG_DRAW_COLLISION    0
 
 /* Show debug UI text (FPS, CPU%, timing stats) (1 = enabled, 0 = disabled) */
 #define DEBUG_UI                0
+
+/* Spawn all hiding adults in the restaurant for testing (1 = enabled, 0 = disabled) */
+#define DEBUG_CHARACTERS        0

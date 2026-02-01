@@ -164,15 +164,23 @@ void initCDDA(void) {
 	trackSecond[2] = response[2];
 	printf("CDDA: Track 2 at %02X:%02X:00\n", trackMinute[2], trackSecond[2]);
 
+	/* Get position of track 3 (gameplay loop) if it exists */
+	if (numTracks >= 3) {
+		param = toBCD(3);
+		sendCommandParams(CDL_GETTD, &param, 1);
+		waitResponse(response, 8);
+		trackMinute[3] = response[1];
+		trackSecond[3] = response[2];
+		printf("CDDA: Track 3 at %02X:%02X:00\n", trackMinute[3], trackSecond[3]);
+	}
+
 	/* Demute CD audio */
 	sendCommand(CDL_DEMUTE);
 	waitResponse(response, 8);
 	printf("CDDA: Demuted\n");
 
 	cddaInitialized = true;
-
-	/* Start playing track 2 */
-	playCDDATrack(2);
+	printf("CDDA: Ready (no auto-play)\n");
 }
 
 void playCDDATrack(int track) {

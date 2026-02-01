@@ -76,6 +76,80 @@ add_custom_command(
 	VERBATIM
 )
 
+# Convert footstep sound effects to SPU-ADPCM format
+add_custom_command(
+	OUTPUT "${PROJECT_BINARY_DIR}/lander/sfx_step_grass.spu"
+	DEPENDS "${PROJECT_SOURCE_DIR}/assets/sfx/03_Step_grass_03.wav"
+	COMMAND
+		"${PSXAVENC_PATH}"
+		"-t" "spu"
+		"-f" "22050"
+		"${PROJECT_SOURCE_DIR}/assets/sfx/03_Step_grass_03.wav"
+		"${PROJECT_BINARY_DIR}/lander/sfx_step_grass.spu"
+	VERBATIM
+)
+add_custom_command(
+	OUTPUT "${PROJECT_BINARY_DIR}/lander/sfx_step_wood.spu"
+	DEPENDS "${PROJECT_SOURCE_DIR}/assets/sfx/12_Step_wood_03.wav"
+	COMMAND
+		"${PSXAVENC_PATH}"
+		"-t" "spu"
+		"-f" "22050"
+		"${PROJECT_SOURCE_DIR}/assets/sfx/12_Step_wood_03.wav"
+		"${PROJECT_BINARY_DIR}/lander/sfx_step_wood.spu"
+	VERBATIM
+)
+
+# Convert intro music WAV to SPU-ADPCM format (trim to 20 seconds first)
+add_custom_command(
+	OUTPUT "${PROJECT_BINARY_DIR}/lander/introMusic_trimmed.wav"
+	DEPENDS "${PROJECT_SOURCE_DIR}/assets/Music/Intro_V3.wav"
+	COMMAND
+		"${Python3_EXECUTABLE}"
+		"${PROJECT_SOURCE_DIR}/tools/trimAudio.py"
+		"${PROJECT_SOURCE_DIR}/assets/Music/Intro_V3.wav"
+		"${PROJECT_BINARY_DIR}/lander/introMusic_trimmed.wav"
+		"20"
+	VERBATIM
+)
+add_custom_command(
+	OUTPUT "${PROJECT_BINARY_DIR}/lander/introMusic.spu"
+	DEPENDS "${PROJECT_BINARY_DIR}/lander/introMusic_trimmed.wav"
+	COMMAND
+		"${PSXAVENC_PATH}"
+		"-t" "spu"
+		"-f" "11025"
+		"-L"
+		"${PROJECT_BINARY_DIR}/lander/introMusic_trimmed.wav"
+		"${PROJECT_BINARY_DIR}/lander/introMusic.spu"
+	VERBATIM
+)
+
+# Convert gameplay loop music WAV to SPU-ADPCM format (trim to 15 seconds, with loop)
+add_custom_command(
+	OUTPUT "${PROJECT_BINARY_DIR}/lander/gameplayMusic_trimmed.wav"
+	DEPENDS "${PROJECT_SOURCE_DIR}/assets/Music/Gameplay_Loop.wav"
+	COMMAND
+		"${Python3_EXECUTABLE}"
+		"${PROJECT_SOURCE_DIR}/tools/trimAudio.py"
+		"${PROJECT_SOURCE_DIR}/assets/Music/Gameplay_Loop.wav"
+		"${PROJECT_BINARY_DIR}/lander/gameplayMusic_trimmed.wav"
+		"15"
+	VERBATIM
+)
+add_custom_command(
+	OUTPUT "${PROJECT_BINARY_DIR}/lander/gameplayMusic.spu"
+	DEPENDS "${PROJECT_BINARY_DIR}/lander/gameplayMusic_trimmed.wav"
+	COMMAND
+		"${PSXAVENC_PATH}"
+		"-t" "spu"
+		"-f" "11025"
+		"-l" "0"
+		"${PROJECT_BINARY_DIR}/lander/gameplayMusic_trimmed.wav"
+		"${PROJECT_BINARY_DIR}/lander/gameplayMusic.spu"
+	VERBATIM
+)
+
 # Convert 3D model from OBJ to binary format (ship - kept for reference)
 add_custom_command(
 	OUTPUT "${PROJECT_BINARY_DIR}/lander/modelData.bin"
@@ -302,6 +376,332 @@ add_custom_command(
 	VERBATIM
 )
 
+# Convert adult_male_L character parts
+add_custom_command(
+	OUTPUT "${PROJECT_BINARY_DIR}/lander/dadBody.bin"
+	DEPENDS
+		"${PROJECT_SOURCE_DIR}/assets/adult_male_L.obj"
+		"${PROJECT_SOURCE_DIR}/src/game/adult_male_L_offsets.h"
+	COMMAND
+		"${Python3_EXECUTABLE}"
+		"${PROJECT_SOURCE_DIR}/tools/convertCharacter.py"
+		"${PROJECT_SOURCE_DIR}/assets/adult_male_L.obj"
+		"${PROJECT_BINARY_DIR}/lander/dadBody.bin"
+		"-o" "adult_body_F_L.002"
+		"-s" "20.0"
+	VERBATIM
+)
+
+add_custom_command(
+	OUTPUT "${PROJECT_BINARY_DIR}/lander/dadHead.bin"
+	DEPENDS "${PROJECT_SOURCE_DIR}/assets/adult_male_L.obj"
+	COMMAND
+		"${Python3_EXECUTABLE}"
+		"${PROJECT_SOURCE_DIR}/tools/convertCharacter.py"
+		"${PROJECT_SOURCE_DIR}/assets/adult_male_L.obj"
+		"${PROJECT_BINARY_DIR}/lander/dadHead.bin"
+		"-o" "adult_body_M_head.001"
+		"-s" "20.0"
+		"--pivot" "bottom"
+	VERBATIM
+)
+
+add_custom_command(
+	OUTPUT "${PROJECT_BINARY_DIR}/lander/dadArmLeft.bin"
+	DEPENDS "${PROJECT_SOURCE_DIR}/assets/adult_male_L.obj"
+	COMMAND
+		"${Python3_EXECUTABLE}"
+		"${PROJECT_SOURCE_DIR}/tools/convertCharacter.py"
+		"${PROJECT_SOURCE_DIR}/assets/adult_male_L.obj"
+		"${PROJECT_BINARY_DIR}/lander/dadArmLeft.bin"
+		"-o" "adult_body_Arm_Left.002"
+		"-s" "20.0"
+		"--pivot" "top"
+	VERBATIM
+)
+
+add_custom_command(
+	OUTPUT "${PROJECT_BINARY_DIR}/lander/dadArmRight.bin"
+	DEPENDS "${PROJECT_SOURCE_DIR}/assets/adult_male_L.obj"
+	COMMAND
+		"${Python3_EXECUTABLE}"
+		"${PROJECT_SOURCE_DIR}/tools/convertCharacter.py"
+		"${PROJECT_SOURCE_DIR}/assets/adult_male_L.obj"
+		"${PROJECT_BINARY_DIR}/lander/dadArmRight.bin"
+		"-o" "adult_body_Arm_Right.002"
+		"-s" "20.0"
+		"--pivot" "top"
+	VERBATIM
+)
+
+add_custom_command(
+	OUTPUT "${PROJECT_BINARY_DIR}/lander/dadLegLeft.bin"
+	DEPENDS "${PROJECT_SOURCE_DIR}/assets/adult_male_L.obj"
+	COMMAND
+		"${Python3_EXECUTABLE}"
+		"${PROJECT_SOURCE_DIR}/tools/convertCharacter.py"
+		"${PROJECT_SOURCE_DIR}/assets/adult_male_L.obj"
+		"${PROJECT_BINARY_DIR}/lander/dadLegLeft.bin"
+		"-o" "adult_body_Feet_Left.002"
+		"-s" "20.0"
+		"--pivot" "top"
+	VERBATIM
+)
+
+add_custom_command(
+	OUTPUT "${PROJECT_BINARY_DIR}/lander/dadLegRight.bin"
+	DEPENDS "${PROJECT_SOURCE_DIR}/assets/adult_male_L.obj"
+	COMMAND
+		"${Python3_EXECUTABLE}"
+		"${PROJECT_SOURCE_DIR}/tools/convertCharacter.py"
+		"${PROJECT_SOURCE_DIR}/assets/adult_male_L.obj"
+		"${PROJECT_BINARY_DIR}/lander/dadLegRight.bin"
+		"-o" "adult_body_Feet_Right.002"
+		"-s" "20.0"
+		"--pivot" "top"
+	VERBATIM
+)
+
+# Generate adult_male_L character offsets header
+add_custom_command(
+	OUTPUT "${PROJECT_SOURCE_DIR}/src/game/adult_male_L_offsets.h"
+	DEPENDS "${PROJECT_SOURCE_DIR}/assets/adult_male_L.obj"
+	COMMAND
+		"${Python3_EXECUTABLE}"
+		"${PROJECT_SOURCE_DIR}/tools/convertCharacter.py"
+		"${PROJECT_SOURCE_DIR}/assets/adult_male_L.obj"
+		"--calculate-offsets"
+		"-s" "20.0"
+		"--offsets-output" "${PROJECT_SOURCE_DIR}/src/game/adult_male_L_offsets.h"
+		"--char-name" "ADULT_MALE_L"
+		"--part" "body=adult_body_F_L.002" "head=adult_body_M_head.001"
+		"arm_left=adult_body_Arm_Left.002" "arm_right=adult_body_Arm_Right.002"
+		"leg_left=adult_body_Feet_Left.002" "leg_right=adult_body_Feet_Right.002"
+	VERBATIM
+)
+
+# Convert citizen_1 character parts (kid male)
+add_custom_command(
+	OUTPUT "${PROJECT_BINARY_DIR}/lander/citizen1Body.bin"
+	DEPENDS
+		"${PROJECT_SOURCE_DIR}/assets/citizen_1.obj"
+		"${PROJECT_SOURCE_DIR}/src/game/citizen_1_offsets.h"
+	COMMAND
+		"${Python3_EXECUTABLE}"
+		"${PROJECT_SOURCE_DIR}/tools/convertCharacter.py"
+		"${PROJECT_SOURCE_DIR}/assets/citizen_1.obj"
+		"${PROJECT_BINARY_DIR}/lander/citizen1Body.bin"
+		"-o" "kid_body_M"
+		"-s" "20.0"
+	VERBATIM
+)
+
+add_custom_command(
+	OUTPUT "${PROJECT_BINARY_DIR}/lander/citizen1Head.bin"
+	DEPENDS "${PROJECT_SOURCE_DIR}/assets/citizen_1.obj"
+	COMMAND
+		"${Python3_EXECUTABLE}"
+		"${PROJECT_SOURCE_DIR}/tools/convertCharacter.py"
+		"${PROJECT_SOURCE_DIR}/assets/citizen_1.obj"
+		"${PROJECT_BINARY_DIR}/lander/citizen1Head.bin"
+		"-o" "adult_body_M_L_head.001"
+		"-s" "20.0"
+		"--pivot" "bottom"
+	VERBATIM
+)
+
+add_custom_command(
+	OUTPUT "${PROJECT_BINARY_DIR}/lander/citizen1ArmLeft.bin"
+	DEPENDS "${PROJECT_SOURCE_DIR}/assets/citizen_1.obj"
+	COMMAND
+		"${Python3_EXECUTABLE}"
+		"${PROJECT_SOURCE_DIR}/tools/convertCharacter.py"
+		"${PROJECT_SOURCE_DIR}/assets/citizen_1.obj"
+		"${PROJECT_BINARY_DIR}/lander/citizen1ArmLeft.bin"
+		"-o" "kid_body_Arm_Left.004"
+		"-s" "20.0"
+		"--pivot" "top"
+	VERBATIM
+)
+
+add_custom_command(
+	OUTPUT "${PROJECT_BINARY_DIR}/lander/citizen1ArmRight.bin"
+	DEPENDS "${PROJECT_SOURCE_DIR}/assets/citizen_1.obj"
+	COMMAND
+		"${Python3_EXECUTABLE}"
+		"${PROJECT_SOURCE_DIR}/tools/convertCharacter.py"
+		"${PROJECT_SOURCE_DIR}/assets/citizen_1.obj"
+		"${PROJECT_BINARY_DIR}/lander/citizen1ArmRight.bin"
+		"-o" "kid_body_M_Arm_Right.003"
+		"-s" "20.0"
+		"--pivot" "top"
+	VERBATIM
+)
+
+add_custom_command(
+	OUTPUT "${PROJECT_BINARY_DIR}/lander/citizen1LegLeft.bin"
+	DEPENDS "${PROJECT_SOURCE_DIR}/assets/citizen_1.obj"
+	COMMAND
+		"${Python3_EXECUTABLE}"
+		"${PROJECT_SOURCE_DIR}/tools/convertCharacter.py"
+		"${PROJECT_SOURCE_DIR}/assets/citizen_1.obj"
+		"${PROJECT_BINARY_DIR}/lander/citizen1LegLeft.bin"
+		"-o" "kid_body_Feet_Left.002"
+		"-s" "20.0"
+		"--pivot" "top"
+	VERBATIM
+)
+
+add_custom_command(
+	OUTPUT "${PROJECT_BINARY_DIR}/lander/citizen1LegRight.bin"
+	DEPENDS "${PROJECT_SOURCE_DIR}/assets/citizen_1.obj"
+	COMMAND
+		"${Python3_EXECUTABLE}"
+		"${PROJECT_SOURCE_DIR}/tools/convertCharacter.py"
+		"${PROJECT_SOURCE_DIR}/assets/citizen_1.obj"
+		"${PROJECT_BINARY_DIR}/lander/citizen1LegRight.bin"
+		"-o" "kid_body_Feet_Right.002"
+		"-s" "20.0"
+		"--pivot" "top"
+	VERBATIM
+)
+
+# Generate citizen_1 character offsets header
+add_custom_command(
+	OUTPUT "${PROJECT_SOURCE_DIR}/src/game/citizen_1_offsets.h"
+	DEPENDS "${PROJECT_SOURCE_DIR}/assets/citizen_1.obj"
+	COMMAND
+		"${Python3_EXECUTABLE}"
+		"${PROJECT_SOURCE_DIR}/tools/convertCharacter.py"
+		"${PROJECT_SOURCE_DIR}/assets/citizen_1.obj"
+		"--calculate-offsets"
+		"-s" "20.0"
+		"--offsets-output" "${PROJECT_SOURCE_DIR}/src/game/citizen_1_offsets.h"
+		"--char-name" "CITIZEN_1"
+		"--part" "body=kid_body_M" "head=adult_body_M_L_head.001"
+		"arm_left=kid_body_Arm_Left.004" "arm_right=kid_body_M_Arm_Right.003"
+		"leg_left=kid_body_Feet_Left.002" "leg_right=kid_body_Feet_Right.002"
+	VERBATIM
+)
+
+# Convert citizen_2 character parts (kid female)
+add_custom_command(
+	OUTPUT "${PROJECT_BINARY_DIR}/lander/citizen2Body.bin"
+	DEPENDS
+		"${PROJECT_SOURCE_DIR}/assets/citizen_2.obj"
+		"${PROJECT_SOURCE_DIR}/src/game/citizen_2_offsets.h"
+	COMMAND
+		"${Python3_EXECUTABLE}"
+		"${PROJECT_SOURCE_DIR}/tools/convertCharacter.py"
+		"${PROJECT_SOURCE_DIR}/assets/citizen_2.obj"
+		"${PROJECT_BINARY_DIR}/lander/citizen2Body.bin"
+		"-o" "kid_body_F_L"
+		"-s" "20.0"
+	VERBATIM
+)
+
+add_custom_command(
+	OUTPUT "${PROJECT_BINARY_DIR}/lander/citizen2Head.bin"
+	DEPENDS "${PROJECT_SOURCE_DIR}/assets/citizen_2.obj"
+	COMMAND
+		"${Python3_EXECUTABLE}"
+		"${PROJECT_SOURCE_DIR}/tools/convertCharacter.py"
+		"${PROJECT_SOURCE_DIR}/assets/citizen_2.obj"
+		"${PROJECT_BINARY_DIR}/lander/citizen2Head.bin"
+		"-o" "adult_body_M_L_head.002"
+		"-s" "20.0"
+		"--pivot" "bottom"
+	VERBATIM
+)
+
+add_custom_command(
+	OUTPUT "${PROJECT_BINARY_DIR}/lander/citizen2ArmLeft.bin"
+	DEPENDS "${PROJECT_SOURCE_DIR}/assets/citizen_2.obj"
+	COMMAND
+		"${Python3_EXECUTABLE}"
+		"${PROJECT_SOURCE_DIR}/tools/convertCharacter.py"
+		"${PROJECT_SOURCE_DIR}/assets/citizen_2.obj"
+		"${PROJECT_BINARY_DIR}/lander/citizen2ArmLeft.bin"
+		"-o" "kid_body_Arm_Left"
+		"-s" "20.0"
+		"--pivot" "top"
+	VERBATIM
+)
+
+add_custom_command(
+	OUTPUT "${PROJECT_BINARY_DIR}/lander/citizen2ArmRight.bin"
+	DEPENDS "${PROJECT_SOURCE_DIR}/assets/citizen_2.obj"
+	COMMAND
+		"${Python3_EXECUTABLE}"
+		"${PROJECT_SOURCE_DIR}/tools/convertCharacter.py"
+		"${PROJECT_SOURCE_DIR}/assets/citizen_2.obj"
+		"${PROJECT_BINARY_DIR}/lander/citizen2ArmRight.bin"
+		"-o" "kid_body_Arm_Right"
+		"-s" "20.0"
+		"--pivot" "top"
+	VERBATIM
+)
+
+add_custom_command(
+	OUTPUT "${PROJECT_BINARY_DIR}/lander/citizen2LegLeft.bin"
+	DEPENDS "${PROJECT_SOURCE_DIR}/assets/citizen_2.obj"
+	COMMAND
+		"${Python3_EXECUTABLE}"
+		"${PROJECT_SOURCE_DIR}/tools/convertCharacter.py"
+		"${PROJECT_SOURCE_DIR}/assets/citizen_2.obj"
+		"${PROJECT_BINARY_DIR}/lander/citizen2LegLeft.bin"
+		"-o" "kid_body_Feet_Left"
+		"-s" "20.0"
+		"--pivot" "top"
+	VERBATIM
+)
+
+add_custom_command(
+	OUTPUT "${PROJECT_BINARY_DIR}/lander/citizen2LegRight.bin"
+	DEPENDS "${PROJECT_SOURCE_DIR}/assets/citizen_2.obj"
+	COMMAND
+		"${Python3_EXECUTABLE}"
+		"${PROJECT_SOURCE_DIR}/tools/convertCharacter.py"
+		"${PROJECT_SOURCE_DIR}/assets/citizen_2.obj"
+		"${PROJECT_BINARY_DIR}/lander/citizen2LegRight.bin"
+		"-o" "kid_body_Feet_Right"
+		"-s" "20.0"
+		"--pivot" "top"
+	VERBATIM
+)
+
+# Generate citizen_2 character offsets header
+add_custom_command(
+	OUTPUT "${PROJECT_SOURCE_DIR}/src/game/citizen_2_offsets.h"
+	DEPENDS "${PROJECT_SOURCE_DIR}/assets/citizen_2.obj"
+	COMMAND
+		"${Python3_EXECUTABLE}"
+		"${PROJECT_SOURCE_DIR}/tools/convertCharacter.py"
+		"${PROJECT_SOURCE_DIR}/assets/citizen_2.obj"
+		"--calculate-offsets"
+		"-s" "20.0"
+		"--offsets-output" "${PROJECT_SOURCE_DIR}/src/game/citizen_2_offsets.h"
+		"--char-name" "CITIZEN_2"
+		"--part" "body=kid_body_F_L" "head=adult_body_M_L_head.002"
+		"arm_left=kid_body_Arm_Left" "arm_right=kid_body_Arm_Right"
+		"leg_left=kid_body_Feet_Left" "leg_right=kid_body_Feet_Right"
+	VERBATIM
+)
+
+# Convert mask model
+add_custom_command(
+	OUTPUT "${PROJECT_BINARY_DIR}/lander/mask.bin"
+	DEPENDS "${PROJECT_SOURCE_DIR}/assets/mask.obj"
+	COMMAND
+		"${Python3_EXECUTABLE}"
+		"${PROJECT_SOURCE_DIR}/tools/convertCharacter.py"
+		"${PROJECT_SOURCE_DIR}/assets/mask.obj"
+		"${PROJECT_BINARY_DIR}/lander/mask.bin"
+		"-o" "mask"
+		"-s" "20.0"
+	VERBATIM
+)
+
 # Convert food box model
 add_custom_command(
 	OUTPUT "${PROJECT_BINARY_DIR}/lander/foodBox.bin"
@@ -483,7 +883,11 @@ addPS1Executable(
 	src/engine/camera.c
 	# Game modules
 	src/game/character.c
+	src/game/collision.c
+	src/game/input.c
 	src/game/main.c
+	src/game/rendering.c
+	src/game/ui.c
 	src/game/world_data.c
 )
 
@@ -500,8 +904,11 @@ addBinaryFile(lander fontPalette "${PROJECT_BINARY_DIR}/lander/fontPalette.dat")
 # Embed grass texture data into executable (32x32 16bpp)
 addBinaryFile(lander grassTexture "${PROJECT_BINARY_DIR}/lander/grassTexture.dat")
 
-# Embed music data into executable (SPU-ADPCM format)
-addBinaryFileWithSize(lander musicData musicData_size "${PROJECT_BINARY_DIR}/lander/musicData.spu")
+# Embed sound effects data into executable (SPU-ADPCM format)
+# Music uses CDDA from disc, SFX uses SPU samples
+addBinaryFileWithSize(lander sfxBiteData sfxBiteData_size "${PROJECT_BINARY_DIR}/lander/musicData.spu")
+addBinaryFileWithSize(lander sfxStepGrassData sfxStepGrassData_size "${PROJECT_BINARY_DIR}/lander/sfx_step_grass.spu")
+addBinaryFileWithSize(lander sfxStepWoodData sfxStepWoodData_size "${PROJECT_BINARY_DIR}/lander/sfx_step_wood.spu")
 
 # Embed character body part data into executable
 addBinaryFileWithSize(lander charBodyData charBodyData_size "${PROJECT_BINARY_DIR}/lander/charBody.bin")
@@ -522,6 +929,33 @@ addBinaryFileWithSize(lander momLegRightData momLegRightData_size "${PROJECT_BIN
 # Embed food box model
 addBinaryFileWithSize(lander foodBoxData foodBoxData_size "${PROJECT_BINARY_DIR}/lander/foodBox.bin")
 
+# Embed mask model
+addBinaryFileWithSize(lander maskData maskData_size "${PROJECT_BINARY_DIR}/lander/mask.bin")
+
+# Embed adult male (dad) character body part data into executable
+addBinaryFileWithSize(lander dadBodyData dadBodyData_size "${PROJECT_BINARY_DIR}/lander/dadBody.bin")
+addBinaryFileWithSize(lander dadHeadData dadHeadData_size "${PROJECT_BINARY_DIR}/lander/dadHead.bin")
+addBinaryFileWithSize(lander dadArmLeftData dadArmLeftData_size "${PROJECT_BINARY_DIR}/lander/dadArmLeft.bin")
+addBinaryFileWithSize(lander dadArmRightData dadArmRightData_size "${PROJECT_BINARY_DIR}/lander/dadArmRight.bin")
+addBinaryFileWithSize(lander dadLegLeftData dadLegLeftData_size "${PROJECT_BINARY_DIR}/lander/dadLegLeft.bin")
+addBinaryFileWithSize(lander dadLegRightData dadLegRightData_size "${PROJECT_BINARY_DIR}/lander/dadLegRight.bin")
+
+# Embed citizen_1 character body part data into executable
+addBinaryFileWithSize(lander citizen1BodyData citizen1BodyData_size "${PROJECT_BINARY_DIR}/lander/citizen1Body.bin")
+addBinaryFileWithSize(lander citizen1HeadData citizen1HeadData_size "${PROJECT_BINARY_DIR}/lander/citizen1Head.bin")
+addBinaryFileWithSize(lander citizen1ArmLeftData citizen1ArmLeftData_size "${PROJECT_BINARY_DIR}/lander/citizen1ArmLeft.bin")
+addBinaryFileWithSize(lander citizen1ArmRightData citizen1ArmRightData_size "${PROJECT_BINARY_DIR}/lander/citizen1ArmRight.bin")
+addBinaryFileWithSize(lander citizen1LegLeftData citizen1LegLeftData_size "${PROJECT_BINARY_DIR}/lander/citizen1LegLeft.bin")
+addBinaryFileWithSize(lander citizen1LegRightData citizen1LegRightData_size "${PROJECT_BINARY_DIR}/lander/citizen1LegRight.bin")
+
+# Embed citizen_2 character body part data into executable
+addBinaryFileWithSize(lander citizen2BodyData citizen2BodyData_size "${PROJECT_BINARY_DIR}/lander/citizen2Body.bin")
+addBinaryFileWithSize(lander citizen2HeadData citizen2HeadData_size "${PROJECT_BINARY_DIR}/lander/citizen2Head.bin")
+addBinaryFileWithSize(lander citizen2ArmLeftData citizen2ArmLeftData_size "${PROJECT_BINARY_DIR}/lander/citizen2ArmLeft.bin")
+addBinaryFileWithSize(lander citizen2ArmRightData citizen2ArmRightData_size "${PROJECT_BINARY_DIR}/lander/citizen2ArmRight.bin")
+addBinaryFileWithSize(lander citizen2LegLeftData citizen2LegLeftData_size "${PROJECT_BINARY_DIR}/lander/citizen2LegLeft.bin")
+addBinaryFileWithSize(lander citizen2LegRightData citizen2LegRightData_size "${PROJECT_BINARY_DIR}/lander/citizen2LegRight.bin")
+
 # Embed house model data into executable
 addBinaryFileWithSize(lander house1Data house1Data_size "${PROJECT_BINARY_DIR}/lander/house1.bin")
 addBinaryFileWithSize(lander house2Data house2Data_size "${PROJECT_BINARY_DIR}/lander/house2.bin")
@@ -539,4 +973,22 @@ addBinaryFileWithSize(lander treeSmallData treeSmallData_size "${PROJECT_BINARY_
 # Embed restaurant model data into executable
 addBinaryFileWithSize(lander restaurantData restaurantData_size "${PROJECT_BINARY_DIR}/lander/restaurant.bin")
 addBinaryFileWithSize(lander restaurantIntData restaurantIntData_size "${PROJECT_BINARY_DIR}/lander/restaurant_interior.bin")
+
+# Web build target - creates a zip file with all web assets
+# Creates lander.zip (ROM) and web_build.zip (full distribution)
+add_custom_target(build-web
+	DEPENDS lander.psexe
+	COMMAND ${CMAKE_COMMAND} -E echo "Creating web distribution..."
+	# Create rom directory if it doesn't exist
+	COMMAND ${CMAKE_COMMAND} -E make_directory "${PROJECT_SOURCE_DIR}/web/rom"
+	# Create lander.zip containing the psexe (renamed to .bin for EmulatorJS compatibility)
+	COMMAND ${CMAKE_COMMAND} -E copy "${PROJECT_BINARY_DIR}/lander.psexe" "${PROJECT_BINARY_DIR}/lander.bin"
+	COMMAND ${CMAKE_COMMAND} -E chdir "${PROJECT_BINARY_DIR}" ${CMAKE_COMMAND} -E tar cf "${PROJECT_SOURCE_DIR}/web/rom/lander.zip" --format=zip lander.bin
+	# Create full web distribution zip
+	COMMAND ${CMAKE_COMMAND} -E chdir "${PROJECT_SOURCE_DIR}/web" ${CMAKE_COMMAND} -E tar cf "${PROJECT_BINARY_DIR}/web_build.zip" --format=zip index.html rom/lander.zip
+	COMMAND ${CMAKE_COMMAND} -E echo "Web build complete!"
+	COMMAND ${CMAKE_COMMAND} -E echo "  ROM: ${PROJECT_SOURCE_DIR}/web/rom/lander.zip"
+	COMMAND ${CMAKE_COMMAND} -E echo "  Full package: ${PROJECT_BINARY_DIR}/web_build.zip"
+	VERBATIM
+)
 

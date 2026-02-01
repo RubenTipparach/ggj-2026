@@ -91,7 +91,10 @@
       "Bash(c:Userssantireposggj-2026build.bat)",
       "Bash(test:*)",
       "Bash(cd:*)",
-      "Bash(python3:*)"
+      "Bash(python3:*)",
+      "Bash(\"c:/Users/santi/repos/ggj-2026/psbw/tools/psxavenc/psxavenc.exe\" --help)",
+      "Bash(\"c:/Users/santi/repos/ggj-2026/tools/psxavenc/psxavenc.exe\" --help)",
+      "Bash(\"c:/Users/santi/repos/ggj-2026/tools/psxavenc/psxavenc.exe\" -t spu -h)"
     ]
   }
 }
