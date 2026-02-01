@@ -21,7 +21,7 @@
  * PLAYER SPAWN
  *============================================================================*/
 
-#define PLAYER_SPAWN_X      -12800
+#define PLAYER_SPAWN_X      -9728
 #define PLAYER_SPAWN_Z      0
 
 /*============================================================================
@@ -56,10 +56,12 @@ extern const TreeSpawn mapTrees[NUM_MAP_TREES];
  * FENCE POSTS (tile-based)
  *============================================================================*/
 
-#define NUM_FENCE_POSTS     155
+#define NUM_FENCE_POSTS     157
 
+/* Fence orientations: 0=N-S(|), 1=E-W(-), 2=diag NE-SW(\\), 3=diag NW-SE(/) */
 typedef struct {
     int32_t x, z;           /* World position (tile center) */
+    uint8_t orientation;    /* Wall orientation (0-3) */
 } FencePost;
 
 extern const FencePost mapFencePosts[NUM_FENCE_POSTS];

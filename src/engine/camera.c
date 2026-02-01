@@ -243,3 +243,14 @@ void cameraOrbit(Camera *cam, int32_t targetX, int32_t targetY, int32_t targetZ,
 	/* Look at the target */
 	cameraLookAt(cam, targetX, targetY, targetZ);
 }
+
+void cameraAddPitch(Camera *cam, int16_t pitchOffset) {
+	cam->pitch += pitchOffset;
+
+	/* Clamp pitch to avoid gimbal lock (just under 90 degrees) */
+	if (cam->pitch > 1020) cam->pitch = 1020;
+	if (cam->pitch < -1020) cam->pitch = -1020;
+
+	cameraUpdateVectors(cam);
+	cameraUpdateViewMatrix(cam);
+}

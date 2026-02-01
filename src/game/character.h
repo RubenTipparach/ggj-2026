@@ -30,6 +30,7 @@ typedef struct {
 
 	/* Movement state */
 	bool isWalking;
+	bool isCarrying;   /* True when carrying an item (arms raised, no swing) */
 	int16_t walkCycle;  /* Animation timer (0-4095) */
 	int16_t bodySquash; /* Squash/stretch for torso (0 = none, positive = squashed) */
 
@@ -68,6 +69,23 @@ void updateCharacter(Character *chr, int16_t turnInput, int16_t forwardInput, in
 
 /* Draw character to DMA chain (uses camera's view matrix for proper 3D transform) */
 void drawCharacter(DMAChain *chain, Character *chr, const Camera *cam);
+
+/* Draw an item attached to the character (e.g., carried food box)
+ * item: the model to draw
+ * offsetY: base Y offset from body center
+ * offsetZ: Z offset (forward from body)
+ * bobAmount: how much to bob up/down with walk cycle
+ * scale: model scale (4096 = 1.0x) */
+void drawCharacterItem(DMAChain *chain, Character *chr, const Model *item, const Camera *cam,
+	int16_t offsetY, int16_t offsetZ, int16_t bobAmount, int16_t scale);
+
+/* Draw an item at a static world position (e.g., food box on table)
+ * item: the model to draw
+ * worldX, worldY, worldZ: world position (not fixed-point, regular ints)
+ * rotation: Y rotation (0-4095 = 0-360 degrees)
+ * scale: model scale (4096 = 1.0x) */
+void drawWorldItem(DMAChain *chain, const Model *item, const Camera *cam,
+	int32_t worldX, int32_t worldY, int32_t worldZ, int16_t rotation, int16_t scale);
 
 #ifdef __cplusplus
 }

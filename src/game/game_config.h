@@ -21,6 +21,17 @@
 /* Turn/rotation speed (angle units per frame, 4096 = 360 degrees) */
 #define PLAYER_TURN_SPEED       96
 
+/* Starting rotation (0=North, 1024=East, 2048=South, 3072=West) */
+#define PLAYER_START_ROTATION   1024
+
+/* Player spawn offset from restaurant (to position at door)
+* With RESTAURANT_ROTATION=0 (North), door is at +X side */
+#define PLAYER_SPAWN_OFFSET_X   700     /* Just outside door (door at X=500) */
+#define PLAYER_SPAWN_OFFSET_Z   170     /* Match door Z offset */
+
+/* Player Y offset (vertical position adjustment, positive = down toward floor) */
+#define PLAYER_Y_OFFSET         20
+
 /*============================================================================
 * CHARACTER ANIMATION
 *============================================================================*/
@@ -40,10 +51,20 @@
 /* Body squash amount during walk (0-4096, where 4096 = 100% squash) */
 #define BODY_SQUASH_AMOUNT      250
 
+/* Head bob during walk (angle units, uses double frequency like squash) */
+#define WALK_HEAD_BOB           30
+
 /* Idle breathing animation */
 #define IDLE_BREATH_SPEED       30      /* How fast the breathing cycle runs */
 #define IDLE_BREATH_AMOUNT      100      /* Body squash amount for breathing */
-#define IDLE_HEAD_BOB           8       /* Subtle head movement amplitude */
+#define IDLE_HEAD_BOB           20       /* Subtle head movement amplitude */
+
+/* Carrying animation (when holding food box) */
+#define CARRY_ARM_ANGLE         600    /* Arms rotated forward/up (negative = forward) */
+#define CARRY_ARM_BOB_AMOUNT    50      /* Arm bob amplitude when carrying */
+#define CARRY_BOX_OFFSET_Y      -20     /* Box Y offset from body center */
+#define CARRY_BOX_OFFSET_Z      40      /* Box Z offset (forward from body) */
+#define CARRY_BOX_BOB_AMOUNT    8       /* Box bob amplitude during walk */
 
 /*============================================================================
 * CAMERA
@@ -61,7 +82,10 @@
 #define CAMERA_FOLLOW_DIVISOR   16
 
 /* Camera Y offset (vertical position relative to character, positive = above) */
-#define CAMERA_Y_OFFSET        50
+#define CAMERA_Y_OFFSET        100
+/* Camera pitch offset (angle units, negative = look down)
+* 4096 = 360°, so 341 ≈ 30°, 256 ≈ 22.5°, 512 ≈ 45° */
+#define CAMERA_PITCH_OFFSET    -200
 
 /*============================================================================
 * INPUT
@@ -86,6 +110,24 @@
 
 /* Player collision radius (world units) */
 #define PLAYER_COLLISION_RADIUS 40
+
+/* Food box scale (4096 = 1.0x) */
+#define FOOD_BOX_SCALE          4096    /* 8192 = 2.0x */
+
+/* Food box Y position when on table (negative = up from floor) */
+#define FOOD_BOX_TABLE_Y        40
+
+/* Interaction radius for talking to NPCs / picking up items (world units) */
+#define INTERACT_RADIUS         150
+
+/* Mom NPC position in restaurant (world units, within floor bounds) */
+/* Floor bounds: X = -490 to +490, Z = -50 to +50 */
+#define MOM_POS_X               -300
+#define MOM_POS_Z               0
+
+/* Food box spawn position in restaurant (within floor bounds) */
+#define FOOD_BOX_POS_X          -100
+#define FOOD_BOX_POS_Z          0
 
 /* Door trigger zones per house type (local units, before HOUSE_SCALE) */
 
@@ -139,6 +181,39 @@
 #define HOUSE3_INT_DOOR_Z       0        /* Interior door Z offset */
 #define HOUSE3_INT_DOOR_SIZE_X  100      /* Half-width of exit trigger */
 #define HOUSE3_INT_DOOR_SIZE_Z  100      /* Half-depth of exit trigger */
+
+/*============================================================================
+* RESTAURANT (at player spawn location)
+*============================================================================*/
+
+/* Restaurant scale multiplier (4096 = 1.0x) */
+#define RESTAURANT_SCALE        3596
+
+/* Restaurant collision box half-size (local units, before RESTAURANT_SCALE) */
+#define RESTAURANT_COLLISION_SIZE_X  500    /* Half-width of collision box */
+#define RESTAURANT_COLLISION_SIZE_Z  800    /* Half-depth of collision box */
+
+/* Restaurant exterior door trigger */
+#define RESTAURANT_DOOR_SIZE_X      150      /* Half-width of door trigger */
+#define RESTAURANT_DOOR_SIZE_Z      150      /* Half-depth of door trigger */
+#define RESTAURANT_DOOR_OFFSET_X    500      /* X offset from center */
+#define RESTAURANT_DOOR_OFFSET_Z    170        /* Z offset from center */
+
+/* Restaurant exterior rotation (facing direction) */
+#define RESTAURANT_ROTATION         0        /* 0 = North (rotated 90° left from East) */
+
+/* Restaurant interior settings */
+#define RESTAURANT_INT_ROTATION     2048     /* Interior model rotation (1024 = 90°) */
+#define RESTAURANT_INT_CAM_DIST     900      /* Camera distance from center */
+#define RESTAURANT_INT_CAM_Y        200      /* Camera Y offset */
+#define RESTAURANT_INT_MODEL_X      50      /* Model X offset */
+#define RESTAURANT_INT_MODEL_Z      -120      /* Model Z offset */
+#define RESTAURANT_INT_DOOR_X       450      /* Interior door X offset */
+#define RESTAURANT_INT_DOOR_Z       0        /* Interior door Z offset */
+#define RESTAURANT_INT_DOOR_SIZE_X  100      /* Half-width of exit trigger */
+#define RESTAURANT_INT_DOOR_SIZE_Z  100      /* Half-depth of exit trigger */
+#define RESTAURANT_INT_FLOOR_HALF_X 490      /* Half-width of walkable area */
+#define RESTAURANT_INT_FLOOR_HALF_Z 50       /* Half-depth of walkable area */
 
 /*============================================================================
 * FLOOR / TERRAIN
@@ -217,6 +292,13 @@
 #define BG_FLASH_BOT_G  100
 #define BG_FLASH_BOT_B  40
 
+/* Distance fog settings */
+#define FOG_NEAR_DISTANCE   1000     /* Distance where fog starts (world units) */
+#define FOG_FAR_DISTANCE    2400    /* Distance where fog is fully opaque */
+#define FOG_COLOR_R         BG_TOP_R  /* Fog blends to background color */
+#define FOG_COLOR_G         BG_TOP_G
+#define FOG_COLOR_B         BG_TOP_B
+
 /*============================================================================
 * AUDIO
 *============================================================================*/
@@ -263,6 +345,9 @@
 /* Tree scale multiplier (4096 = 1.0x) */
 #define TREE_SCALE              3596
 
+/* Tree Y offset (negative = up, moves tree above/below floor level) */
+#define TREE_Y_OFFSET           0
+
 /* Tree collision radius (world units) */
 #define TREE_COLLISION_RADIUS   60
 
@@ -284,4 +369,4 @@
 #define DEBUG_DRAW_COLLISION    1
 
 /* Show debug UI text (FPS, CPU%, timing stats) (1 = enabled, 0 = disabled) */
-#define DEBUG_UI                1
+#define DEBUG_UI                0

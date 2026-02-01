@@ -12,11 +12,30 @@
 #include "transform.h"
 #include "trig.h"
 #include "game_config.h"
+#include "kids_female_L_offsets.h"
 #include "ps1/gpucmd.h"
 #include "ps1/gte.h"
 
 /* GTE fixed-point format (20.12) */
 #define ONE (1 << 12)
+
+/* Distance fog helper functions */
+static inline uint8_t applyFog(int32_t distance, uint8_t color, uint8_t fogColor) {
+	if (distance <= FOG_NEAR_DISTANCE) return color;
+	if (distance >= FOG_FAR_DISTANCE) return fogColor;
+
+	int32_t fogRange = FOG_FAR_DISTANCE - FOG_NEAR_DISTANCE;
+	int32_t fogDist = distance - FOG_NEAR_DISTANCE;
+	int32_t fogFactor = (fogDist * 256) / fogRange;
+
+	return (uint8_t)(((256 - fogFactor) * color + fogFactor * fogColor) >> 8);
+}
+
+static inline void applyFogRGB(int32_t distance, uint8_t *r, uint8_t *g, uint8_t *b) {
+	*r = applyFog(distance, *r, FOG_COLOR_R);
+	*g = applyFog(distance, *g, FOG_COLOR_G);
+	*b = applyFog(distance, *b, FOG_COLOR_B);
+}
 
 bool initCharacter(Character *chr,
 	const uint8_t *bodyData, uint32_t bodySize,
@@ -33,6 +52,7 @@ bool initCharacter(Character *chr,
 	chr->facing = 0;
 	chr->targetFacing = 0;
 	chr->isWalking = false;
+	chr->isCarrying = false;
 	chr->walkCycle = 0;
 	chr->bodySquash = 0;
 
@@ -67,42 +87,30 @@ bool initCharacter(Character *chr,
 		return false;
 	}
 
-	/* Set up part offsets to position pivots at joint locations
-	 * Pivot points from conversion tool (relative to body center at OBJ Y=4.22):
-	 *   Head pivot (neck): Y=5.63 → offset Y = 1.41 → PS1 Y = -28 (up)
-	 *   Arm pivots (shoulder): Y=6.58 → offset Y = 2.36 → PS1 Y = -47 (up)
-	 *   Leg pivots (hip): Y=1.79 → offset Y = -2.43 → PS1 Y = 49 (down)
-	 *
-	 * PS1 coords: X=right, Y=down (negative=up), Z=into screen
-	 */
+	/* Part offsets from auto-generated header */
+	chr->partOffsetX[PART_BODY] = KIDS_FEMALE_L_BODY_OFFSET_X;
+	chr->partOffsetY[PART_BODY] = KIDS_FEMALE_L_BODY_OFFSET_Y;
+	chr->partOffsetZ[PART_BODY] = KIDS_FEMALE_L_BODY_OFFSET_Z;
 
-	/* Body is at center */
-	chr->partOffsetX[PART_BODY] = 0;
-	chr->partOffsetY[PART_BODY] = 0;
-	chr->partOffsetZ[PART_BODY] = 0;
+	chr->partOffsetX[PART_HEAD] = KIDS_FEMALE_L_HEAD_OFFSET_X;
+	chr->partOffsetY[PART_HEAD] = KIDS_FEMALE_L_HEAD_OFFSET_Y;
+	chr->partOffsetZ[PART_HEAD] = KIDS_FEMALE_L_HEAD_OFFSET_Z;
 
-	/* Head pivot at neck - position at top of torso */
-	chr->partOffsetX[PART_HEAD] = 1;
-	chr->partOffsetY[PART_HEAD] = -28;  /* Up to neck position */
-	chr->partOffsetZ[PART_HEAD] = 9;
+	chr->partOffsetX[PART_ARM_LEFT] = KIDS_FEMALE_L_ARM_LEFT_OFFSET_X;
+	chr->partOffsetY[PART_ARM_LEFT] = KIDS_FEMALE_L_ARM_LEFT_OFFSET_Y;
+	chr->partOffsetZ[PART_ARM_LEFT] = KIDS_FEMALE_L_ARM_LEFT_OFFSET_Z;
 
-	/* Arm pivots at shoulders */
-	chr->partOffsetX[PART_ARM_LEFT] = 25;   /* OBJ +X = right side */
-	chr->partOffsetY[PART_ARM_LEFT] = -47;  /* Up to shoulder */
-	chr->partOffsetZ[PART_ARM_LEFT] = 1;
+	chr->partOffsetX[PART_ARM_RIGHT] = KIDS_FEMALE_L_ARM_RIGHT_OFFSET_X;
+	chr->partOffsetY[PART_ARM_RIGHT] = KIDS_FEMALE_L_ARM_RIGHT_OFFSET_Y;
+	chr->partOffsetZ[PART_ARM_RIGHT] = KIDS_FEMALE_L_ARM_RIGHT_OFFSET_Z;
 
-	chr->partOffsetX[PART_ARM_RIGHT] = -25;  /* OBJ -X = left side */
-	chr->partOffsetY[PART_ARM_RIGHT] = -47;
-	chr->partOffsetZ[PART_ARM_RIGHT] = 1;
+	chr->partOffsetX[PART_LEG_LEFT] = KIDS_FEMALE_L_LEG_LEFT_OFFSET_X;
+	chr->partOffsetY[PART_LEG_LEFT] = KIDS_FEMALE_L_LEG_LEFT_OFFSET_Y;
+	chr->partOffsetZ[PART_LEG_LEFT] = KIDS_FEMALE_L_LEG_LEFT_OFFSET_Z;
 
-	/* Leg pivots at hips */
-	chr->partOffsetX[PART_LEG_LEFT] = 14;   /* OBJ +X */
-	chr->partOffsetY[PART_LEG_LEFT] = 49;   /* Down to hip */
-	chr->partOffsetZ[PART_LEG_LEFT] = 1;
-
-	chr->partOffsetX[PART_LEG_RIGHT] = -14;  /* OBJ -X */
-	chr->partOffsetY[PART_LEG_RIGHT] = 49;
-	chr->partOffsetZ[PART_LEG_RIGHT] = 1;
+	chr->partOffsetX[PART_LEG_RIGHT] = KIDS_FEMALE_L_LEG_RIGHT_OFFSET_X;
+	chr->partOffsetY[PART_LEG_RIGHT] = KIDS_FEMALE_L_LEG_RIGHT_OFFSET_Y;
+	chr->partOffsetZ[PART_LEG_RIGHT] = KIDS_FEMALE_L_LEG_RIGHT_OFFSET_Z;
 
 	/* Initialize rotations to zero */
 	for (int i = 0; i < NUM_BODY_PARTS; i++) {
@@ -169,23 +177,32 @@ void updateCharacter(Character *chr, int16_t turnInput, int16_t forwardInput, in
 		 * walkCycle and isin both use 4096 = full cycle */
 		int swing = isin(chr->walkCycle);  /* Returns -ONE to +ONE */
 
-		/* Arms swing opposite to legs */
-		int armSwing = (swing * ARM_SWING_ANGLE) / ONE;
+		/* Legs always swing during walk */
 		int legSwing = (swing * LEG_SWING_ANGLE) / ONE;
-
-		/* Left arm and right leg swing forward together */
-		chr->partRotX[PART_ARM_LEFT] = armSwing;
-		chr->partRotX[PART_ARM_RIGHT] = -armSwing;
-
-		/* Legs swing opposite to arms */
 		chr->partRotX[PART_LEG_LEFT] = -legSwing;
 		chr->partRotX[PART_LEG_RIGHT] = legSwing;
+
+		/* Arms: raised with bob when carrying, swinging when not */
+		if (chr->isCarrying) {
+			/* Arms raised forward with bobbing motion */
+			int armBob = (swing * CARRY_ARM_BOB_AMOUNT) / ONE;
+			chr->partRotX[PART_ARM_LEFT] = CARRY_ARM_ANGLE + armBob;
+			chr->partRotX[PART_ARM_RIGHT] = CARRY_ARM_ANGLE + armBob;
+		} else {
+			/* Normal arm swing opposite to legs */
+			int armSwing = (swing * ARM_SWING_ANGLE) / ONE;
+			chr->partRotX[PART_ARM_LEFT] = armSwing;
+			chr->partRotX[PART_ARM_RIGHT] = -armSwing;
+		}
 
 		/* Body squash: use absolute value of sine for squash at foot contact */
 		/* Double frequency for squash (squash twice per walk cycle) */
 		int squashWave = isin(chr->walkCycle * 2);
 		squashWave = (squashWave < 0) ? -squashWave : squashWave;  /* Abs value */
 		chr->bodySquash = (squashWave * BODY_SQUASH_AMOUNT) / ONE;
+
+		/* Head bob: nod forward slightly with each step */
+		chr->partRotX[PART_HEAD] = (squashWave * WALK_HEAD_BOB) / ONE;
 	} else {
 		/* Idle pose with breathing animation */
 
@@ -203,15 +220,34 @@ void updateCharacter(Character *chr, int16_t turnInput, int16_t forwardInput, in
 		/* Subtle head bob with breathing */
 		chr->partRotX[PART_HEAD] = (breathWave * IDLE_HEAD_BOB) / ONE;
 
-		/* Return limbs to neutral pose (scaled by deltaTime) */
-		int returnSpeed = (LIMB_RETURN_SPEED * deltaTime) >> 8;
-		for (int i = PART_ARM_LEFT; i <= PART_LEG_RIGHT; i++) {
-			if (chr->partRotX[i] > 0) {
-				chr->partRotX[i] -= returnSpeed;
-				if (chr->partRotX[i] < 0) chr->partRotX[i] = 0;
-			} else if (chr->partRotX[i] < 0) {
-				chr->partRotX[i] += returnSpeed;
-				if (chr->partRotX[i] > 0) chr->partRotX[i] = 0;
+		/* Arm handling when idle */
+		if (chr->isCarrying) {
+			/* Keep arms raised with gentle bob when carrying */
+			int armBob = (breathWave * CARRY_ARM_BOB_AMOUNT) / ONE;
+			chr->partRotX[PART_ARM_LEFT] = CARRY_ARM_ANGLE + armBob;
+			chr->partRotX[PART_ARM_RIGHT] = CARRY_ARM_ANGLE + armBob;
+			/* Return only legs to neutral */
+			int returnSpeed = (LIMB_RETURN_SPEED * deltaTime) >> 8;
+			for (int i = PART_LEG_LEFT; i <= PART_LEG_RIGHT; i++) {
+				if (chr->partRotX[i] > 0) {
+					chr->partRotX[i] -= returnSpeed;
+					if (chr->partRotX[i] < 0) chr->partRotX[i] = 0;
+				} else if (chr->partRotX[i] < 0) {
+					chr->partRotX[i] += returnSpeed;
+					if (chr->partRotX[i] > 0) chr->partRotX[i] = 0;
+				}
+			}
+		} else {
+			/* Return all limbs to neutral pose (scaled by deltaTime) */
+			int returnSpeed = (LIMB_RETURN_SPEED * deltaTime) >> 8;
+			for (int i = PART_ARM_LEFT; i <= PART_LEG_RIGHT; i++) {
+				if (chr->partRotX[i] > 0) {
+					chr->partRotX[i] -= returnSpeed;
+					if (chr->partRotX[i] < 0) chr->partRotX[i] = 0;
+				} else if (chr->partRotX[i] < 0) {
+					chr->partRotX[i] += returnSpeed;
+					if (chr->partRotX[i] > 0) chr->partRotX[i] = 0;
+				}
 			}
 		}
 	}
@@ -223,7 +259,9 @@ static void drawBodyPart(DMAChain *chain, const Model *model,
 	int16_t localPitch, int16_t localYaw, int16_t localRoll,
 	int32_t baseX, int32_t baseY, int32_t baseZ,
 	int16_t parentYaw,
-	int16_t scaleX, int16_t scaleY, int16_t scaleZ)  /* Scale in 4.12 fixed point (4096 = 1.0) */
+	int16_t scaleX, int16_t scaleY, int16_t scaleZ,  /* Scale in 4.12 fixed point (4096 = 1.0) */
+	const Camera *cam,  /* Camera for view rotation */
+	int32_t viewDistance)  /* Distance from camera for fog calculation */
 {
 	/*
 	 * Hierarchical transform using the transform module:
@@ -231,8 +269,8 @@ static void drawBodyPart(DMAChain *chain, const Model *model,
 	 * Parent transform: character body position + facing (yaw only)
 	 * Child transform: limb offset + local rotation (pitch for arm/leg swing)
 	 *
-	 * Combined = Parent * Child
-	 * This means: first rotate in local space, then in world space
+	 * Combined = CameraView * Parent * Child
+	 * This means: first rotate in local space, then character space, then view space
 	 */
 
 	Transform parent, child, combined;
@@ -247,8 +285,22 @@ static void drawBodyPart(DMAChain *chain, const Model *model,
 	transformSetRotation(&child, localYaw, localPitch, localRoll);
 	transformSetTranslation(&child, offsetX, offsetY, offsetZ);
 
-	/* Combine: result = parent * child */
+	/* Combine character transforms: charLocal = parent * child */
 	transformCombine(&combined, &parent, &child);
+
+	/* Apply camera pitch to rotation only (not translation) to keep character grounded */
+	int32_t cp = icos(-cam->pitch);
+	int32_t sp = isin(-cam->pitch);
+
+	/* Multiply combined rotation by pitch rotation matrix (RotX) */
+	/* RotX = [1, 0, 0; 0, cos, -sin; 0, sin, cos] */
+	Matrix3x3 pitched;
+	for (int col = 0; col < 3; col++) {
+		pitched.m[0][col] = combined.rotation.m[0][col];
+		pitched.m[1][col] = (cp * combined.rotation.m[1][col] - sp * combined.rotation.m[2][col]) >> FP_SHIFT;
+		pitched.m[2][col] = (sp * combined.rotation.m[1][col] + cp * combined.rotation.m[2][col]) >> FP_SHIFT;
+	}
+	combined.rotation = pitched;
 
 	/* Load into GTE */
 	transformLoadToGTE(&combined);
@@ -317,6 +369,11 @@ static void drawBodyPart(DMAChain *chain, const Model *model,
 			r0 = g0 = b0 = r1 = g1 = b1 = r2 = g2 = b2 = 128;
 		}
 
+		/* Apply distance fog to vertex colors */
+		applyFogRGB(viewDistance, &r0, &g0, &b0);
+		applyFogRGB(viewDistance, &r1, &g1, &b1);
+		applyFogRGB(viewDistance, &r2, &g2, &b2);
+
 		/* Allocate packet for Gouraud-shaded triangle (6 words) */
 		uint32_t *ptr = allocatePacket(chain, zIndex, 6);
 		ptr[0] = gp0_rgb(r0, g0, b0) | gp0_shadedTriangle(true, false, false);
@@ -367,7 +424,7 @@ void drawCharacter(DMAChain *chain, Character *chr, const Camera *cam)
 		chr->partRotY[PART_BODY],
 		chr->partRotZ[PART_BODY],
 		viewX, viewY, viewZ, adjustedFacing,
-		bodyScaleXZ, bodyScaleY, bodyScaleXZ);
+		bodyScaleXZ, bodyScaleY, bodyScaleXZ, cam, viewZ);
 
 	/* Draw head (no scale, but compensate offset for body squash) */
 	drawBodyPart(chain, &chr->parts[PART_HEAD],
@@ -378,7 +435,7 @@ void drawCharacter(DMAChain *chain, Character *chr, const Camera *cam)
 		chr->partRotY[PART_HEAD],
 		chr->partRotZ[PART_HEAD],
 		viewX, viewY, viewZ, adjustedFacing,
-		ONE, ONE, ONE);
+		ONE, ONE, ONE, cam, viewZ);
 
 	/* Draw arms (no scale, but compensate offset for body squash) */
 	drawBodyPart(chain, &chr->parts[PART_ARM_LEFT],
@@ -389,7 +446,7 @@ void drawCharacter(DMAChain *chain, Character *chr, const Camera *cam)
 		chr->partRotY[PART_ARM_LEFT],
 		chr->partRotZ[PART_ARM_LEFT],
 		viewX, viewY, viewZ, adjustedFacing,
-		ONE, ONE, ONE);
+		ONE, ONE, ONE, cam, viewZ);
 
 	drawBodyPart(chain, &chr->parts[PART_ARM_RIGHT],
 		chr->partOffsetX[PART_ARM_RIGHT],
@@ -399,7 +456,7 @@ void drawCharacter(DMAChain *chain, Character *chr, const Camera *cam)
 		chr->partRotY[PART_ARM_RIGHT],
 		chr->partRotZ[PART_ARM_RIGHT],
 		viewX, viewY, viewZ, adjustedFacing,
-		ONE, ONE, ONE);
+		ONE, ONE, ONE, cam, viewZ);
 
 	/* Draw legs (no scale, legs attach below body so no compensation needed) */
 	drawBodyPart(chain, &chr->parts[PART_LEG_LEFT],
@@ -410,7 +467,7 @@ void drawCharacter(DMAChain *chain, Character *chr, const Camera *cam)
 		chr->partRotY[PART_LEG_LEFT],
 		chr->partRotZ[PART_LEG_LEFT],
 		viewX, viewY, viewZ, adjustedFacing,
-		ONE, ONE, ONE);
+		ONE, ONE, ONE, cam, viewZ);
 
 	drawBodyPart(chain, &chr->parts[PART_LEG_RIGHT],
 		chr->partOffsetX[PART_LEG_RIGHT],
@@ -420,5 +477,76 @@ void drawCharacter(DMAChain *chain, Character *chr, const Camera *cam)
 		chr->partRotY[PART_LEG_RIGHT],
 		chr->partRotZ[PART_LEG_RIGHT],
 		viewX, viewY, viewZ, adjustedFacing,
-		ONE, ONE, ONE);
+		ONE, ONE, ONE, cam, viewZ);
+}
+
+void drawCharacterItem(DMAChain *chain, Character *chr, const Model *item, const Camera *cam,
+	int16_t offsetY, int16_t offsetZ, int16_t bobAmount, int16_t scale)
+{
+	/* Calculate character position relative to camera (in world space) */
+	int32_t relX = (chr->x >> 12) - cam->x;
+	int32_t relY = (chr->y >> 12) - cam->y;
+	int32_t relZ = (chr->z >> 12) - cam->z;
+
+	/* Apply camera's full view rotation matrix (includes both pitch and yaw) */
+	int32_t viewX = ((int32_t)cam->viewRotation.m[0][0] * relX +
+	                 (int32_t)cam->viewRotation.m[0][1] * relY +
+	                 (int32_t)cam->viewRotation.m[0][2] * relZ) >> FP_SHIFT;
+	int32_t viewY = ((int32_t)cam->viewRotation.m[1][0] * relX +
+	                 (int32_t)cam->viewRotation.m[1][1] * relY +
+	                 (int32_t)cam->viewRotation.m[1][2] * relZ) >> FP_SHIFT;
+	int32_t viewZ = ((int32_t)cam->viewRotation.m[2][0] * relX +
+	                 (int32_t)cam->viewRotation.m[2][1] * relY +
+	                 (int32_t)cam->viewRotation.m[2][2] * relZ) >> FP_SHIFT;
+
+	/* Character facing adjusted for camera rotation */
+	int16_t adjustedFacing = chr->facing - cam->yaw;
+
+	/* Calculate bobbing offset based on walk cycle (sync with arm swing) */
+	int16_t bobOffset = 0;
+	if (chr->isWalking && bobAmount != 0) {
+		/* Use same frequency as arm swing for synced motion */
+		int bobWave = isin(chr->walkCycle);
+		bobWave = (bobWave < 0) ? -bobWave : bobWave;  /* Abs value */
+		bobOffset = (bobWave * bobAmount) / ONE;
+	}
+
+	/* Draw item using drawBodyPart with no local rotation */
+	drawBodyPart(chain, item,
+		0,                              /* No X offset (centered on character) */
+		offsetY + bobOffset,            /* Y offset with bobbing */
+		offsetZ,                        /* Z offset (forward) */
+		0, 0, 0,                        /* No local rotation */
+		viewX, viewY, viewZ, adjustedFacing,
+		scale, scale, scale, cam, viewZ);
+}
+
+void drawWorldItem(DMAChain *chain, const Model *item, const Camera *cam,
+	int32_t worldX, int32_t worldY, int32_t worldZ, int16_t rotation, int16_t scale)
+{
+	/* Calculate position relative to camera (in world space) */
+	int32_t relX = worldX - cam->x;
+	int32_t relY = worldY - cam->y;
+	int32_t relZ = worldZ - cam->z;
+
+	/* Apply camera's full view rotation matrix (includes both pitch and yaw) */
+	int32_t viewX = ((int32_t)cam->viewRotation.m[0][0] * relX +
+	                 (int32_t)cam->viewRotation.m[0][1] * relY +
+	                 (int32_t)cam->viewRotation.m[0][2] * relZ) >> FP_SHIFT;
+	int32_t viewY = ((int32_t)cam->viewRotation.m[1][0] * relX +
+	                 (int32_t)cam->viewRotation.m[1][1] * relY +
+	                 (int32_t)cam->viewRotation.m[1][2] * relZ) >> FP_SHIFT;
+	int32_t viewZ = ((int32_t)cam->viewRotation.m[2][0] * relX +
+	                 (int32_t)cam->viewRotation.m[2][1] * relY +
+	                 (int32_t)cam->viewRotation.m[2][2] * relZ) >> FP_SHIFT;
+
+	/* Rotation adjusted for camera yaw */
+	int16_t adjustedRotation = rotation - cam->yaw;
+
+	/* Draw item using drawBodyPart with no offsets */
+	drawBodyPart(chain, item,
+		0, 0, 0,                        /* No offset from position */
+		0, 0, 0,                        /* No local rotation */
+		viewX, viewY, viewZ, adjustedRotation,
+		scale, scale, scale, cam, viewZ);
 }

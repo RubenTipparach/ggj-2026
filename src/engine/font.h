@@ -51,6 +51,18 @@ void printStringColor(
 	uint8_t           b
 );
 
+void printStringColorZ(
+	DMAChain          *chain,
+	const TextureInfo *font,
+	int               x,
+	int               y,
+	const char        *str,
+	uint8_t           r,
+	uint8_t           g,
+	uint8_t           b,
+	int               otIndex
+);
+
 #ifdef __cplusplus
 }
 #endif

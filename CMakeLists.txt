@@ -56,6 +56,12 @@ convertImage(
 	lander/fontPalette.dat
 )
 
+# Convert grass texture from PNG to raw 16bpp data (32x32)
+convertImage(
+	assets/grass.png 16
+	lander/grassTexture.dat
+)
+
 # Convert sound effect WAV to SPU-ADPCM format for embedding (bite sound)
 # Using 22050 Hz mono for better quality on short sound effects
 add_custom_command(
@@ -83,10 +89,12 @@ add_custom_command(
 )
 
 # Convert character body parts from OBJ to binary format
-# Torso (kid_body_F_L)
+# Torso (kid_body_F_L) - depends on offsets header being generated first
 add_custom_command(
 	OUTPUT "${PROJECT_BINARY_DIR}/lander/charBody.bin"
-	DEPENDS "${PROJECT_SOURCE_DIR}/assets/kids_female_L.obj"
+	DEPENDS
+		"${PROJECT_SOURCE_DIR}/assets/kids_female_L.obj"
+		"${PROJECT_SOURCE_DIR}/src/game/kids_female_L_offsets.h"
 	COMMAND
 		"${Python3_EXECUTABLE}"
 		"${PROJECT_SOURCE_DIR}/tools/convertCharacter.py"
@@ -169,6 +177,142 @@ add_custom_command(
 		"-o" "kid_body_Feet_Right"
 		"-s" "20.0"
 		"--pivot" "top"
+	VERBATIM
+)
+
+# Generate character offsets header
+add_custom_command(
+	OUTPUT "${PROJECT_SOURCE_DIR}/src/game/kids_female_L_offsets.h"
+	DEPENDS "${PROJECT_SOURCE_DIR}/assets/kids_female_L.obj"
+	COMMAND
+		"${Python3_EXECUTABLE}"
+		"${PROJECT_SOURCE_DIR}/tools/convertCharacter.py"
+		"${PROJECT_SOURCE_DIR}/assets/kids_female_L.obj"
+		"--calculate-offsets"
+		"-s" "20.0"
+		"--offsets-output" "${PROJECT_SOURCE_DIR}/src/game/kids_female_L_offsets.h"
+		"--char-name" "KIDS_FEMALE_L"
+		"--part" "body=kid_body_F_L" "head=kid_body_F_L_head"
+		"arm_left=kid_body_Arm_Left" "arm_right=kid_body_Arm_Right"
+		"leg_left=kid_body_Feet_Left" "leg_right=kid_body_Feet_Right"
+	VERBATIM
+)
+
+# Convert adult_female_L (Mom) character parts
+add_custom_command(
+	OUTPUT "${PROJECT_BINARY_DIR}/lander/momBody.bin"
+	DEPENDS
+		"${PROJECT_SOURCE_DIR}/assets/adult_female_L.obj"
+		"${PROJECT_SOURCE_DIR}/src/game/adult_female_L_offsets.h"
+	COMMAND
+		"${Python3_EXECUTABLE}"
+		"${PROJECT_SOURCE_DIR}/tools/convertCharacter.py"
+		"${PROJECT_SOURCE_DIR}/assets/adult_female_L.obj"
+		"${PROJECT_BINARY_DIR}/lander/momBody.bin"
+		"-o" "adult_body_F_L"
+		"-s" "20.0"
+	VERBATIM
+)
+
+add_custom_command(
+	OUTPUT "${PROJECT_BINARY_DIR}/lander/momHead.bin"
+	DEPENDS "${PROJECT_SOURCE_DIR}/assets/adult_female_L.obj"
+	COMMAND
+		"${Python3_EXECUTABLE}"
+		"${PROJECT_SOURCE_DIR}/tools/convertCharacter.py"
+		"${PROJECT_SOURCE_DIR}/assets/adult_female_L.obj"
+		"${PROJECT_BINARY_DIR}/lander/momHead.bin"
+		"-o" "adult_body_F_L_head"
+		"-s" "20.0"
+		"--pivot" "bottom"
+	VERBATIM
+)
+
+add_custom_command(
+	OUTPUT "${PROJECT_BINARY_DIR}/lander/momArmLeft.bin"
+	DEPENDS "${PROJECT_SOURCE_DIR}/assets/adult_female_L.obj"
+	COMMAND
+		"${Python3_EXECUTABLE}"
+		"${PROJECT_SOURCE_DIR}/tools/convertCharacter.py"
+		"${PROJECT_SOURCE_DIR}/assets/adult_female_L.obj"
+		"${PROJECT_BINARY_DIR}/lander/momArmLeft.bin"
+		"-o" "adult_body_Arm_Left"
+		"-s" "20.0"
+		"--pivot" "top"
+	VERBATIM
+)
+
+add_custom_command(
+	OUTPUT "${PROJECT_BINARY_DIR}/lander/momArmRight.bin"
+	DEPENDS "${PROJECT_SOURCE_DIR}/assets/adult_female_L.obj"
+	COMMAND
+		"${Python3_EXECUTABLE}"
+		"${PROJECT_SOURCE_DIR}/tools/convertCharacter.py"
+		"${PROJECT_SOURCE_DIR}/assets/adult_female_L.obj"
+		"${PROJECT_BINARY_DIR}/lander/momArmRight.bin"
+		"-o" "adult_body_Arm_Right"
+		"-s" "20.0"
+		"--pivot" "top"
+	VERBATIM
+)
+
+add_custom_command(
+	OUTPUT "${PROJECT_BINARY_DIR}/lander/momLegLeft.bin"
+	DEPENDS "${PROJECT_SOURCE_DIR}/assets/adult_female_L.obj"
+	COMMAND
+		"${Python3_EXECUTABLE}"
+		"${PROJECT_SOURCE_DIR}/tools/convertCharacter.py"
+		"${PROJECT_SOURCE_DIR}/assets/adult_female_L.obj"
+		"${PROJECT_BINARY_DIR}/lander/momLegLeft.bin"
+		"-o" "adult_body_Feet_Left"
+		"-s" "20.0"
+		"--pivot" "top"
+	VERBATIM
+)
+
+add_custom_command(
+	OUTPUT "${PROJECT_BINARY_DIR}/lander/momLegRight.bin"
+	DEPENDS "${PROJECT_SOURCE_DIR}/assets/adult_female_L.obj"
+	COMMAND
+		"${Python3_EXECUTABLE}"
+		"${PROJECT_SOURCE_DIR}/tools/convertCharacter.py"
+		"${PROJECT_SOURCE_DIR}/assets/adult_female_L.obj"
+		"${PROJECT_BINARY_DIR}/lander/momLegRight.bin"
+		"-o" "adult_body_Feet_Right"
+		"-s" "20.0"
+		"--pivot" "top"
+	VERBATIM
+)
+
+# Generate mom character offsets header
+add_custom_command(
+	OUTPUT "${PROJECT_SOURCE_DIR}/src/game/adult_female_L_offsets.h"
+	DEPENDS "${PROJECT_SOURCE_DIR}/assets/adult_female_L.obj"
+	COMMAND
+		"${Python3_EXECUTABLE}"
+		"${PROJECT_SOURCE_DIR}/tools/convertCharacter.py"
+		"${PROJECT_SOURCE_DIR}/assets/adult_female_L.obj"
+		"--calculate-offsets"
+		"-s" "20.0"
+		"--offsets-output" "${PROJECT_SOURCE_DIR}/src/game/adult_female_L_offsets.h"
+		"--char-name" "ADULT_FEMALE_L"
+		"--part" "body=adult_body_F_L" "head=adult_body_F_L_head"
+		"arm_left=adult_body_Arm_Left" "arm_right=adult_body_Arm_Right"
+		"leg_left=adult_body_Feet_Left" "leg_right=adult_body_Feet_Right"
+	VERBATIM
+)
+
+# Convert food box model
+add_custom_command(
+	OUTPUT "${PROJECT_BINARY_DIR}/lander/foodBox.bin"
+	DEPENDS "${PROJECT_SOURCE_DIR}/assets/food_box.obj"
+	COMMAND
+		"${Python3_EXECUTABLE}"
+		"${PROJECT_SOURCE_DIR}/tools/convertCharacter.py"
+		"${PROJECT_SOURCE_DIR}/assets/food_box.obj"
+		"${PROJECT_BINARY_DIR}/lander/foodBox.bin"
+		"-o" "food_box"
+		"-s" "20.0"
 	VERBATIM
 )
 
@@ -295,6 +439,35 @@ add_custom_command(
 	VERBATIM
 )
 
+# Convert restaurant models from OBJ to binary format
+add_custom_command(
+	OUTPUT "${PROJECT_BINARY_DIR}/lander/restaurant.bin"
+	DEPENDS "${PROJECT_SOURCE_DIR}/assets/restuarant.obj"
+	COMMAND
+		"${Python3_EXECUTABLE}"
+		"${PROJECT_SOURCE_DIR}/tools/convertCharacter.py"
+		"${PROJECT_SOURCE_DIR}/assets/restuarant.obj"
+		"${PROJECT_BINARY_DIR}/lander/restaurant.bin"
+		"-o" "restuarant"
+		"-s" "80.0"
+		"--pivot" "bottom"
+	VERBATIM
+)
+
+add_custom_command(
+	OUTPUT "${PROJECT_BINARY_DIR}/lander/restaurant_interior.bin"
+	DEPENDS "${PROJECT_SOURCE_DIR}/assets/restuarant_interior.obj"
+	COMMAND
+		"${Python3_EXECUTABLE}"
+		"${PROJECT_SOURCE_DIR}/tools/convertCharacter.py"
+		"${PROJECT_SOURCE_DIR}/assets/restuarant_interior.obj"
+		"${PROJECT_BINARY_DIR}/lander/restaurant_interior.bin"
+		"-o" "restuarant_interior"
+		"-s" "80.0"
+		"--pivot" "bottom"
+	VERBATIM
+)
+
 # Build the lander executable
 addPS1Executable(
 	lander
@@ -324,6 +497,9 @@ addBinaryFileWithSize(lander modelData modelData_size "${PROJECT_BINARY_DIR}/lan
 addBinaryFile(lander fontTexture "${PROJECT_BINARY_DIR}/lander/fontTexture.dat")
 addBinaryFile(lander fontPalette "${PROJECT_BINARY_DIR}/lander/fontPalette.dat")
 
+# Embed grass texture data into executable (32x32 16bpp)
+addBinaryFile(lander grassTexture "${PROJECT_BINARY_DIR}/lander/grassTexture.dat")
+
 # Embed music data into executable (SPU-ADPCM format)
 addBinaryFileWithSize(lander musicData musicData_size "${PROJECT_BINARY_DIR}/lander/musicData.spu")
 
@@ -334,6 +510,17 @@ addBinaryFileWithSize(lander charArmLeftData charArmLeftData_size "${PROJECT_BIN
 addBinaryFileWithSize(lander charArmRightData charArmRightData_size "${PROJECT_BINARY_DIR}/lander/charArmRight.bin")
 addBinaryFileWithSize(lander charLegLeftData charLegLeftData_size "${PROJECT_BINARY_DIR}/lander/charLegLeft.bin")
 addBinaryFileWithSize(lander charLegRightData charLegRightData_size "${PROJECT_BINARY_DIR}/lander/charLegRight.bin")
+
+# Embed mom character body part data into executable
+addBinaryFileWithSize(lander momBodyData momBodyData_size "${PROJECT_BINARY_DIR}/lander/momBody.bin")
+addBinaryFileWithSize(lander momHeadData momHeadData_size "${PROJECT_BINARY_DIR}/lander/momHead.bin")
+addBinaryFileWithSize(lander momArmLeftData momArmLeftData_size "${PROJECT_BINARY_DIR}/lander/momArmLeft.bin")
+addBinaryFileWithSize(lander momArmRightData momArmRightData_size "${PROJECT_BINARY_DIR}/lander/momArmRight.bin")
+addBinaryFileWithSize(lander momLegLeftData momLegLeftData_size "${PROJECT_BINARY_DIR}/lander/momLegLeft.bin")
+addBinaryFileWithSize(lander momLegRightData momLegRightData_size "${PROJECT_BINARY_DIR}/lander/momLegRight.bin")
+
+# Embed food box model
+addBinaryFileWithSize(lander foodBoxData foodBoxData_size "${PROJECT_BINARY_DIR}/lander/foodBox.bin")
 
 # Embed house model data into executable
 addBinaryFileWithSize(lander house1Data house1Data_size "${PROJECT_BINARY_DIR}/lander/house1.bin")
@@ -348,4 +535,8 @@ addBinaryFileWithSize(lander house3IntData house3IntData_size "${PROJECT_BINARY_
 # Embed tree model data into executable
 addBinaryFileWithSize(lander treeLargeData treeLargeData_size "${PROJECT_BINARY_DIR}/lander/tree_large.bin")
 addBinaryFileWithSize(lander treeSmallData treeSmallData_size "${PROJECT_BINARY_DIR}/lander/tree_small.bin")
+
+# Embed restaurant model data into executable
+addBinaryFileWithSize(lander restaurantData restaurantData_size "${PROJECT_BINARY_DIR}/lander/restaurant.bin")
+addBinaryFileWithSize(lander restaurantIntData restaurantIntData_size "${PROJECT_BINARY_DIR}/lander/restaurant_interior.bin")
 

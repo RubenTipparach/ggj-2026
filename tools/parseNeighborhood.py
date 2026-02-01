@@ -33,9 +33,12 @@ MAP_WORLD_SIZE = MAP_PIXELS * MAP_SCALE  # 32768
 
 
 def pixel_to_world(px, pz):
-    """Convert pixel coordinates to world coordinates (centered at origin)."""
+    """Convert pixel coordinates to world coordinates (centered at origin).
+
+    Note: Z is negated because image Y increases downward but world Z North is negative.
+    """
     wx = (px - MAP_PIXELS // 2) * MAP_SCALE
-    wz = (pz - MAP_PIXELS // 2) * MAP_SCALE
+    wz = -((pz - MAP_PIXELS // 2) * MAP_SCALE)  # Negate Z to fix N/S mirroring
     return wx, wz
 
 
@@ -82,37 +85,128 @@ def region_center(region):
     return sum_x // len(region), sum_y // len(region)
 
 
-def find_nearest_street_direction(img, px, pz):
-    """Find the direction to nearest street tile for house orientation."""
-    width, height = img.size
-    best_dist = float('inf')
-    best_dir = 0  # Default facing
+def find_adjacent_street_direction(img, house_region):
+    """Find direction to adjacent street tile for house orientation.
 
-    # Search in cardinal directions
+    Checks pixels immediately adjacent to the house region to find streets,
+    then returns the rotation to face that direction.
+    """
+    width, height = img.size
+
+    # Build set of house pixels for fast lookup
+    house_pixels = set(house_region)
+
+    # Direction definitions: (dx, dy, rotation)
+    # rotation is the angle the house door should face (rotated 90 deg right/CW from street direction)
     directions = [
-        (0, -1, 0),      # North (facing -Z) -> rotation 0
-        (1, 0, 1024),    # East (facing +X) -> rotation 1024 (90 deg)
-        (0, 1, 2048),    # South (facing +Z) -> rotation 2048 (180 deg)
-        (-1, 0, 3072),   # West (facing -X) -> rotation 3072 (270 deg)
+        (0, -1, 1024),   # Street to North -> door faces East (rotation 1024)
+        (1, 0, 2048),    # Street to East -> door faces South (rotation 2048)
+        (0, 1, 3072),    # Street to South -> door faces West (rotation 3072)
+        (-1, 0, 0),      # Street to West -> door faces North (rotation 0)
     ]
 
-    for dx, dy, rotation in directions:
-        # Search along this direction
-        for dist in range(1, 20):
-            nx = px + dx * dist
-            ny = pz + dy * dist
-            if 0 <= nx < width and 0 <= ny < height:
-                if img.getpixel((nx, ny)) == COLOR_STREET:
-                    if dist < best_dist:
-                        best_dist = dist
-                        best_dir = rotation
-                    break
+    # Count adjacent street tiles in each direction
+    direction_counts = {0: 0, 1024: 0, 2048: 0, 3072: 0}
 
-    return best_dir
+    for hx, hy in house_region:
+        for dx, dy, rotation in directions:
+            nx, ny = hx + dx, hy + dy
+            # Check if neighbor is outside house and is a street
+            if (nx, ny) not in house_pixels:
+                if 0 <= nx < width and 0 <= ny < height:
+                    if img.getpixel((nx, ny)) == COLOR_STREET:
+                        direction_counts[rotation] += 1
+
+    # Pick direction with most adjacent street tiles
+    best_rotation = 0
+    best_count = 0
+    for rotation, count in direction_counts.items():
+        if count > best_count:
+            best_count = count
+            best_rotation = rotation
+
+    # If no adjacent streets found, fall back to searching further out
+    if best_count == 0:
+        cx, cz = region_center(house_region)
+        for dx, dy, rotation in directions:
+            for dist in range(1, 20):
+                nx = cx + dx * dist
+                ny = cz + dy * dist
+                if 0 <= nx < width and 0 <= ny < height:
+                    if img.getpixel((nx, ny)) == COLOR_STREET:
+                        return rotation
+
+    return best_rotation
+
+
+def is_fence_pixel(img, x, y):
+    """Check if pixel at (x, y) is a fence pixel."""
+    width, height = img.size
+    if x < 0 or x >= width or y < 0 or y >= height:
+        return False
+    return img.getpixel((x, y)) == COLOR_FENCE
+
+
+def get_fence_orientation(img, x, y):
+    """Determine fence wall orientation based on neighboring fence pixels.
+
+    Returns:
+        0 = North-South wall (|) - spans Z axis, for E-W running fence sections
+        1 = East-West wall (-) - spans X axis, for N-S running fence sections
+        2 = Diagonal NE-SW (\\) - connects NE corner to SW corner
+        3 = Diagonal NW-SE (/) - connects NW corner to SE corner
+    """
+    # Check 4 cardinal neighbors
+    has_n = is_fence_pixel(img, x, y - 1)  # North (up in image = -Z in world)
+    has_s = is_fence_pixel(img, x, y + 1)  # South (down in image = +Z in world)
+    has_e = is_fence_pixel(img, x + 1, y)  # East (+X)
+    has_w = is_fence_pixel(img, x - 1, y)  # West (-X)
+
+    # Check 4 diagonal neighbors
+    has_ne = is_fence_pixel(img, x + 1, y - 1)
+    has_nw = is_fence_pixel(img, x - 1, y - 1)
+    has_se = is_fence_pixel(img, x + 1, y + 1)
+    has_sw = is_fence_pixel(img, x - 1, y + 1)
+
+    ns_connection = has_n or has_s
+    ew_connection = has_e or has_w
+
+    # Check for diagonal patterns - specific directions
+    nesw_diagonal = has_ne or has_sw  # Backslash pattern \ (NE to SW)
+    nwse_diagonal = has_nw or has_se  # Forward slash pattern / (NW to SE)
+
+    # Priority: cardinal directions first, then diagonals
+    if ns_connection and not ew_connection and not nesw_diagonal and not nwse_diagonal:
+        # Fence runs N-S only, wall spans N-S (|)
+        return [0]
+    elif ew_connection and not ns_connection and not nesw_diagonal and not nwse_diagonal:
+        # Fence runs E-W only, wall spans E-W (-)
+        return [1]
+    elif ns_connection and ew_connection:
+        # Corner piece with cardinal connections - need both walls
+        return [0, 1]
+    elif nesw_diagonal and nwse_diagonal:
+        # Both diagonals present - this is a diagonal corner, use both
+        return [2, 3]
+    elif nesw_diagonal:
+        # Only NE-SW diagonal (backslash \)
+        return [2]
+    elif nwse_diagonal:
+        # Only NW-SE diagonal (forward slash /)
+        return [3]
+    elif ns_connection:
+        # N-S with possible other connections
+        return [0]
+    elif ew_connection:
+        # E-W with possible other connections
+        return [1]
+    else:
+        # Isolated pixel - default to both cardinal directions for visibility
+        return [0, 1]
 
 
 def collect_fence_posts(img):
-    """Collect all fence pixel positions as individual posts (tile-based)."""
+    """Collect all fence pixel positions with orientation (tile-based)."""
     width, height = img.size
     posts = []
 
@@ -120,7 +214,10 @@ def collect_fence_posts(img):
         for x in range(width):
             if img.getpixel((x, y)) == COLOR_FENCE:
                 wx, wz = pixel_to_world(x, y)
-                posts.append((wx, wz))
+                orientations = get_fence_orientation(img, x, y)
+                # Add a post for each orientation (corners/diagonals get multiple)
+                for orientation in orientations:
+                    posts.append((wx, wz, orientation))
 
     return posts
 
@@ -188,8 +285,10 @@ def generate_header(houses, trees, fence_posts, street_bitmap, spawn_x, spawn_z)
         "",
         f"#define NUM_FENCE_POSTS     {len(fence_posts)}",
         "",
+        "/* Fence orientations: 0=N-S(|), 1=E-W(-), 2=diag NE-SW(\\\\), 3=diag NW-SE(/) */",
         "typedef struct {",
         "    int32_t x, z;           /* World position (tile center) */",
+        "    uint8_t orientation;    /* Wall orientation (0-3) */",
         "} FencePost;",
         "",
         "extern const FencePost mapFencePosts[NUM_FENCE_POSTS];",
@@ -253,8 +352,8 @@ def generate_source(houses, trees, fence_posts, street_bitmap):
         "const FencePost mapFencePosts[NUM_FENCE_POSTS] = {",
     ])
 
-    for x, z in fence_posts:
-        lines.append(f"    {{ .x = {x}, .z = {z} }},")
+    for x, z, orientation in fence_posts:
+        lines.append(f"    {{ .x = {x}, .z = {z}, .orientation = {orientation} }},")
 
     lines.extend([
         "};",
@@ -307,15 +406,19 @@ def main():
     print("Finding houses...")
     house_regions = find_connected_regions(img, COLOR_HOUSE)
     houses = []
+
     for i, region in enumerate(house_regions):
         cx, cz = region_center(region)
         wx, wz = pixel_to_world(cx, cz)
-        rotation = find_nearest_street_direction(img, cx, cz)
+        rotation = find_adjacent_street_direction(img, region)
+        # Add 180° rotation to all houses (door direction correction)
+        rotation = (rotation + 2048) % 4096
         model_type = i % 3  # Cycle through house models
         # Generate house address from pixel coordinates (XXYY format)
         address = cx * 100 + cz
-        houses.append((wx, wz, rotation, address, model_type))
         print(f"  House {i}: pixel ({cx}, {cz}) -> world ({wx}, {wz}), rotation {rotation}, address {address}, model {model_type}")
+
+        houses.append((wx, wz, rotation, address, model_type))
 
     # Find trees (dark green pixels)
     print("Finding trees...")

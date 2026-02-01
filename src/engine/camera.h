@@ -63,6 +63,9 @@ void cameraLookAt(Camera *cam, int32_t targetX, int32_t targetY, int32_t targetZ
 void cameraOrbit(Camera *cam, int32_t targetX, int32_t targetY, int32_t targetZ,
                  int16_t orbitAngle, int32_t distance, int32_t height);
 
+/* Add a pitch offset to the current camera orientation (negative = look down) */
+void cameraAddPitch(Camera *cam, int16_t pitchOffset);
+
 #ifdef __cplusplus
 }
 #endif
