@@ -122,10 +122,10 @@ bool initCharacter(Character *chr,
 	return true;
 }
 
-void updateCharacter(Character *chr, int16_t turnInput, int16_t forwardInput) {
-	/* Handle turning - directly modify facing */
+void updateCharacter(Character *chr, int16_t turnInput, int16_t forwardInput, int deltaTime) {
+	/* Handle turning - directly modify facing (scaled by deltaTime) */
 	if (turnInput != 0) {
-		chr->facing += turnInput * PLAYER_TURN_SPEED;
+		chr->facing += (turnInput * PLAYER_TURN_SPEED * deltaTime) >> 8;
 
 		/* Keep facing in valid range */
 		while (chr->facing > 2048) chr->facing -= 4096;
@@ -145,14 +145,17 @@ void updateCharacter(Character *chr, int16_t turnInput, int16_t forwardInput) {
 		int32_t sinFacing = isin(chr->facing);
 		int32_t cosFacing = icos(chr->facing);
 
-		/* Move in the direction character is facing
+		/* Move in the direction character is facing (scaled by deltaTime)
 		 * forwardInput > 0 = forward (away from camera)
-		 * forwardInput < 0 = backward (toward camera) */
-		chr->x += (sinFacing * forwardInput * PLAYER_MOVE_SPEED) >> FP_SHIFT;
-		chr->z += (cosFacing * forwardInput * PLAYER_MOVE_SPEED) >> FP_SHIFT;
+		 * forwardInput < 0 = backward (toward camera)
+		 * Calculate base movement first, then scale by deltaTime to avoid overflow */
+		int32_t baseMovement = (sinFacing * forwardInput * PLAYER_MOVE_SPEED) >> FP_SHIFT;
+		chr->x += (baseMovement * deltaTime) >> 8;
+		baseMovement = (cosFacing * forwardInput * PLAYER_MOVE_SPEED) >> FP_SHIFT;
+		chr->z += (baseMovement * deltaTime) >> 8;
 
-		/* Advance walk cycle */
-		chr->walkCycle += WALK_CYCLE_SPEED;
+		/* Advance walk cycle (scaled by deltaTime) */
+		chr->walkCycle += (WALK_CYCLE_SPEED * deltaTime) >> 8;
 		if (chr->walkCycle >= 4096) {
 			chr->walkCycle -= 4096;
 		}
@@ -186,8 +189,8 @@ void updateCharacter(Character *chr, int16_t turnInput, int16_t forwardInput) {
 	} else {
 		/* Idle pose with breathing animation */
 
-		/* Continue walk cycle at slower speed for breathing */
-		chr->walkCycle += IDLE_BREATH_SPEED;
+		/* Continue walk cycle at slower speed for breathing (scaled by deltaTime) */
+		chr->walkCycle += (IDLE_BREATH_SPEED * deltaTime) >> 8;
 		if (chr->walkCycle >= 4096) {
 			chr->walkCycle -= 4096;
 		}
@@ -200,13 +203,14 @@ void updateCharacter(Character *chr, int16_t turnInput, int16_t forwardInput) {
 		/* Subtle head bob with breathing */
 		chr->partRotX[PART_HEAD] = (breathWave * IDLE_HEAD_BOB) / ONE;
 
-		/* Return limbs to neutral pose */
+		/* Return limbs to neutral pose (scaled by deltaTime) */
+		int returnSpeed = (LIMB_RETURN_SPEED * deltaTime) >> 8;
 		for (int i = PART_ARM_LEFT; i <= PART_LEG_RIGHT; i++) {
 			if (chr->partRotX[i] > 0) {
-				chr->partRotX[i] -= LIMB_RETURN_SPEED;
+				chr->partRotX[i] -= returnSpeed;
 				if (chr->partRotX[i] < 0) chr->partRotX[i] = 0;
 			} else if (chr->partRotX[i] < 0) {
-				chr->partRotX[i] += LIMB_RETURN_SPEED;
+				chr->partRotX[i] += returnSpeed;
 				if (chr->partRotX[i] > 0) chr->partRotX[i] = 0;
 			}
 		}

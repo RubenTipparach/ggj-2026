@@ -40,6 +40,17 @@ void printString(
 	const char        *str
 );
 
+void printStringColor(
+	DMAChain          *chain,
+	const TextureInfo *font,
+	int               x,
+	int               y,
+	const char        *str,
+	uint8_t           r,
+	uint8_t           g,
+	uint8_t           b
+);
+
 #ifdef __cplusplus
 }
 #endif

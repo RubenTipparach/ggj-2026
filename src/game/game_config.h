@@ -15,6 +15,9 @@
 /* Movement speed (world units per frame) */
 #define PLAYER_MOVE_SPEED       30000
 
+/* Outdoor speed multiplier (256 = 1.0x, 512 = 2.0x, etc.) */
+#define OUTDOOR_SPEED_MULT      512
+
 /* Turn/rotation speed (angle units per frame, 4096 = 360 degrees) */
 #define PLAYER_TURN_SPEED       96
 
@@ -46,8 +49,13 @@
 * CAMERA
 *============================================================================*/
 
+/* Field of view - focal length for GTE projection
+* Higher = narrower FOV (more zoomed in)
+* ~120 = ~106° FOV, ~160 = ~90° FOV, ~208 = ~75° FOV */
+#define CAMERA_FOCAL_LENGTH     208
+
 /* Base distance from camera to character (lower = more zoomed in) */
-#define CAMERA_DISTANCE         250
+#define CAMERA_DISTANCE         350
 
 /* Camera follow smoothing (higher = slower/smoother, 1 = instant) */
 #define CAMERA_FOLLOW_DIVISOR   16
@@ -62,12 +70,75 @@
 /* Analog stick deadzone (0-127 range) */
 #define ANALOG_DEADZONE         20
 
+/* Rotation threshold for "face direction" turns (angle units)
+* When within this threshold, stop turning to avoid jitter */
+#define ROTATION_THRESHOLD      64
+
 /*============================================================================
 * WORLD OBJECTS
 *============================================================================*/
 
 /* House scale multiplier (2048 = 0.5x, 6144 = 1.5x, 4096 = 1.0x, 8192 = 2.0x, etc.) */
 #define HOUSE_SCALE  3596
+
+/* Default collision box half-size for houses (local units, before HOUSE_SCALE) */
+#define HOUSE_COLLISION_SIZE    500
+
+/* Player collision radius (world units) */
+#define PLAYER_COLLISION_RADIUS 40
+
+/* Door trigger zones per house type (local units, before HOUSE_SCALE) */
+
+/* House 1 exterior door trigger */
+#define HOUSE1_DOOR_SIZE_X      100      /* Half-width of door trigger */
+#define HOUSE1_DOOR_SIZE_Z      100      /* Half-depth of door trigger */
+#define HOUSE1_DOOR_OFFSET_X    500      /* X offset from house center */
+#define HOUSE1_DOOR_OFFSET_Z    0        /* Z offset from house center */
+
+/* House 1 interior settings */
+#define HOUSE1_INT_ROTATION     2048     /* Interior model rotation (1024 = 90°) */
+#define HOUSE1_INT_CAM_DIST     900      /* Camera distance from center */
+#define HOUSE1_INT_CAM_Y        200      /* Camera Y offset */
+#define HOUSE1_INT_MODEL_X      -90      /* Model X offset */
+#define HOUSE1_INT_MODEL_Z      -60      /* Model Z offset */
+#define HOUSE1_INT_DOOR_X       450      /* Interior door X offset */
+#define HOUSE1_INT_DOOR_Z       0        /* Interior door Z offset */
+#define HOUSE1_INT_DOOR_SIZE_X  100      /* Half-width of exit trigger */
+#define HOUSE1_INT_DOOR_SIZE_Z  100      /* Half-depth of exit trigger */
+
+/* House 2 exterior door trigger */
+#define HOUSE2_DOOR_SIZE_X      100
+#define HOUSE2_DOOR_SIZE_Z      100
+#define HOUSE2_DOOR_OFFSET_X    500
+#define HOUSE2_DOOR_OFFSET_Z    -100
+
+/* House 2 interior settings */
+#define HOUSE2_INT_ROTATION     2048     /* Interior model rotation (1024 = 90°) */
+#define HOUSE2_INT_CAM_DIST     900      /* Camera distance from center */
+#define HOUSE2_INT_CAM_Y        200      /* Camera Y offset */
+#define HOUSE2_INT_MODEL_X      -90      /* Model X offset */
+#define HOUSE2_INT_MODEL_Z      -180      /* Model Z offset */
+#define HOUSE2_INT_DOOR_X       450      /* Interior door X offset */
+#define HOUSE2_INT_DOOR_Z       0        /* Interior door Z offset */
+#define HOUSE2_INT_DOOR_SIZE_X  100      /* Half-width of exit trigger */
+#define HOUSE2_INT_DOOR_SIZE_Z  100      /* Half-depth of exit trigger */
+
+/* House 3 exterior door trigger */
+#define HOUSE3_DOOR_SIZE_X      100
+#define HOUSE3_DOOR_SIZE_Z      100
+#define HOUSE3_DOOR_OFFSET_X    500
+#define HOUSE3_DOOR_OFFSET_Z    0
+
+/* House 3 interior settings */
+#define HOUSE3_INT_ROTATION     2048     /* Interior model rotation (1024 = 90°) */
+#define HOUSE3_INT_CAM_DIST     900      /* Camera distance from center */
+#define HOUSE3_INT_CAM_Y        200      /* Camera Y offset */
+#define HOUSE3_INT_MODEL_X      -90      /* Model X offset */
+#define HOUSE3_INT_MODEL_Z      -180      /* Model Z offset */
+#define HOUSE3_INT_DOOR_X       450      /* Interior door X offset */
+#define HOUSE3_INT_DOOR_Z       0        /* Interior door Z offset */
+#define HOUSE3_INT_DOOR_SIZE_X  100      /* Half-width of exit trigger */
+#define HOUSE3_INT_DOOR_SIZE_Z  100      /* Half-depth of exit trigger */
 
 /*============================================================================
 * FLOOR / TERRAIN
@@ -94,6 +165,34 @@
 #define GRASS_COLOR_3_R  11
 #define GRASS_COLOR_3_G  36
 #define GRASS_COLOR_3_B  88
+
+/*============================================================================
+* INTERIOR SCENES
+*============================================================================*/
+
+/* Interior camera settings */
+#define INTERIOR_CAMERA_ANGLE       0       /* Fixed Y rotation (0 = facing +Z) */
+#define INTERIOR_CAMERA_Y_OFFSET    100     /* Height above floor */
+#define INTERIOR_CAMERA_DISTANCE    300     /* Distance from room center */
+
+/* Interior floor bounds (half-size, player movement area) */
+#define INTERIOR_FLOOR_HALF_X       390     /* Half-width of walkable area */
+#define INTERIOR_FLOOR_HALF_Z       50     /* Half-depth of walkable area */
+
+/* Interior background colors */
+#define INTERIOR_BG_TOP_R           40
+#define INTERIOR_BG_TOP_G           30
+#define INTERIOR_BG_TOP_B           50
+#define INTERIOR_BG_BOT_R           20
+#define INTERIOR_BG_BOT_G           15
+#define INTERIOR_BG_BOT_B           25
+
+/*============================================================================
+* SCENE TRANSITIONS
+*============================================================================*/
+
+/* Fade speed (alpha change per frame, 0-255) */
+#define FADE_SPEED                  8
 
 /*============================================================================
 * VISUAL EFFECTS
@@ -130,3 +229,59 @@
 
 /* Master volume (0-0x3FFF) */
 #define MASTER_VOLUME           0x3FFF
+
+/*============================================================================
+* FENCE
+*============================================================================*/
+
+/* Fence dimensions (world units) */
+#define FENCE_HEIGHT            120
+#define FENCE_COLLISION_THICKNESS  30
+
+/* Fence colors (brown wood) */
+#define FENCE_COLOR_R           100
+#define FENCE_COLOR_G           70
+#define FENCE_COLOR_B           40
+
+/*============================================================================
+* STREET TILES
+*============================================================================*/
+
+/* Street tile colors (grey variations for visual interest) */
+#define STREET_COLOR_1_R        90
+#define STREET_COLOR_1_G        90
+#define STREET_COLOR_1_B        95
+
+#define STREET_COLOR_2_R        100
+#define STREET_COLOR_2_G        100
+#define STREET_COLOR_2_B        105
+
+/*============================================================================
+* TREES
+*============================================================================*/
+
+/* Tree scale multiplier (4096 = 1.0x) */
+#define TREE_SCALE              3596
+
+/* Tree collision radius (world units) */
+#define TREE_COLLISION_RADIUS   60
+
+/*============================================================================
+* DISTANCE CULLING
+*============================================================================*/
+
+/* Maximum distance from camera before objects are culled (world units) */
+#define CULL_DISTANCE_HOUSE     3000
+#define CULL_DISTANCE_TREE      3000
+#define CULL_DISTANCE_FENCE     2000
+#define CULL_DISTANCE_DEBUG     3000
+
+/*============================================================================
+* DEBUG
+*============================================================================*/
+
+/* Draw collision box wireframes (1 = enabled, 0 = disabled) */
+#define DEBUG_DRAW_COLLISION    1
+
+/* Show debug UI text (FPS, CPU%, timing stats) (1 = enabled, 0 = disabled) */
+#define DEBUG_UI                1

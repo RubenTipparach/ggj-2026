@@ -218,6 +218,83 @@ add_custom_command(
 	VERBATIM
 )
 
+# House interior models (for interior scenes)
+# House 1 interior (includes all meshes)
+add_custom_command(
+	OUTPUT "${PROJECT_BINARY_DIR}/lander/house1_interior.bin"
+	DEPENDS "${PROJECT_SOURCE_DIR}/assets/Mercona_hut_1_interior.obj"
+	COMMAND
+		"${Python3_EXECUTABLE}"
+		"${PROJECT_SOURCE_DIR}/tools/convertCharacter.py"
+		"${PROJECT_SOURCE_DIR}/assets/Mercona_hut_1_interior.obj"
+		"${PROJECT_BINARY_DIR}/lander/house1_interior.bin"
+		"-o" "Mercona_hut_1_interior" "Mercona_hut_3_interior.002"
+		"-s" "80.0"
+		"--pivot" "bottom"
+	VERBATIM
+)
+
+# House 2 interior (includes all meshes)
+add_custom_command(
+	OUTPUT "${PROJECT_BINARY_DIR}/lander/house2_interior.bin"
+	DEPENDS "${PROJECT_SOURCE_DIR}/assets/Mercona_hut_2_interior.obj"
+	COMMAND
+		"${Python3_EXECUTABLE}"
+		"${PROJECT_SOURCE_DIR}/tools/convertCharacter.py"
+		"${PROJECT_SOURCE_DIR}/assets/Mercona_hut_2_interior.obj"
+		"${PROJECT_BINARY_DIR}/lander/house2_interior.bin"
+		"-o" "Mercona_hut_2_interior" "Mercona_hut_3_interior.003"
+		"-s" "80.0"
+		"--pivot" "bottom"
+	VERBATIM
+)
+
+# House 3 interior (includes all meshes)
+add_custom_command(
+	OUTPUT "${PROJECT_BINARY_DIR}/lander/house3_interior.bin"
+	DEPENDS "${PROJECT_SOURCE_DIR}/assets/Mercona_hut_3_interior.obj"
+	COMMAND
+		"${Python3_EXECUTABLE}"
+		"${PROJECT_SOURCE_DIR}/tools/convertCharacter.py"
+		"${PROJECT_SOURCE_DIR}/assets/Mercona_hut_3_interior.obj"
+		"${PROJECT_BINARY_DIR}/lander/house3_interior.bin"
+		"-o" "Mercona_hut_3_interior" "Mercona_hut_3_interior.001"
+		"-s" "80.0"
+		"--pivot" "bottom"
+	VERBATIM
+)
+
+# Convert tree models from OBJ to binary format
+# Large tree (uses tree.002 at larger scale)
+add_custom_command(
+	OUTPUT "${PROJECT_BINARY_DIR}/lander/tree_large.bin"
+	DEPENDS "${PROJECT_SOURCE_DIR}/assets/tree.obj"
+	COMMAND
+		"${Python3_EXECUTABLE}"
+		"${PROJECT_SOURCE_DIR}/tools/convertCharacter.py"
+		"${PROJECT_SOURCE_DIR}/assets/tree.obj"
+		"${PROJECT_BINARY_DIR}/lander/tree_large.bin"
+		"-o" "tree.002"
+		"-s" "80.0"
+		"--pivot" "bottom"
+	VERBATIM
+)
+
+# Small tree variant (same model at smaller scale)
+add_custom_command(
+	OUTPUT "${PROJECT_BINARY_DIR}/lander/tree_small.bin"
+	DEPENDS "${PROJECT_SOURCE_DIR}/assets/tree.obj"
+	COMMAND
+		"${Python3_EXECUTABLE}"
+		"${PROJECT_SOURCE_DIR}/tools/convertCharacter.py"
+		"${PROJECT_SOURCE_DIR}/assets/tree.obj"
+		"${PROJECT_BINARY_DIR}/lander/tree_small.bin"
+		"-o" "tree.002"
+		"-s" "50.0"
+		"--pivot" "bottom"
+	VERBATIM
+)
+
 # Build the lander executable
 addPS1Executable(
 	lander
@@ -234,6 +311,7 @@ addPS1Executable(
 	# Game modules
 	src/game/character.c
 	src/game/main.c
+	src/game/world_data.c
 )
 
 # Embed texture data into executable
@@ -261,4 +339,13 @@ addBinaryFileWithSize(lander charLegRightData charLegRightData_size "${PROJECT_B
 addBinaryFileWithSize(lander house1Data house1Data_size "${PROJECT_BINARY_DIR}/lander/house1.bin")
 addBinaryFileWithSize(lander house2Data house2Data_size "${PROJECT_BINARY_DIR}/lander/house2.bin")
 addBinaryFileWithSize(lander house3Data house3Data_size "${PROJECT_BINARY_DIR}/lander/house3.bin")
+
+# Embed house interior model data into executable
+addBinaryFileWithSize(lander house1IntData house1IntData_size "${PROJECT_BINARY_DIR}/lander/house1_interior.bin")
+addBinaryFileWithSize(lander house2IntData house2IntData_size "${PROJECT_BINARY_DIR}/lander/house2_interior.bin")
+addBinaryFileWithSize(lander house3IntData house3IntData_size "${PROJECT_BINARY_DIR}/lander/house3_interior.bin")
+
+# Embed tree model data into executable
+addBinaryFileWithSize(lander treeLargeData treeLargeData_size "${PROJECT_BINARY_DIR}/lander/tree_large.bin")
+addBinaryFileWithSize(lander treeSmallData treeSmallData_size "${PROJECT_BINARY_DIR}/lander/tree_small.bin")
 

@@ -152,6 +152,22 @@ def extract_object(objects, all_vertices, all_uvs, all_colors, object_names):
     return vertices, uvs, colors, faces
 
 
+def get_pivot_object_vertices(objects, all_vertices, object_names):
+    """Get vertices only from the first object for pivot calculation."""
+    if not object_names:
+        return []
+
+    pivot_name = object_names[0]  # Use first object for pivot (matches original single-object behavior)
+    if pivot_name not in objects:
+        return []
+
+    pivot_vertices = []
+    for global_idx in objects[pivot_name]['vertex_indices']:
+        pivot_vertices.append(all_vertices[global_idx])
+
+    return pivot_vertices
+
+
 def calculate_center(vertices):
     """Calculate the center point of vertices."""
     if not vertices:
@@ -344,20 +360,23 @@ def main():
     print(f"Extracting objects: {args.objects}")
     vertices, uvs, colors, faces = extract_object(objects, all_vertices, all_uvs, all_colors, args.objects)
 
+    # Get pivot object vertices (last object) for pivot calculation
+    pivot_vertices = get_pivot_object_vertices(objects, all_vertices, args.objects)
+
     print(f"  Vertices: {len(vertices)}")
     print(f"  UVs: {len(uvs)}")
     print(f"  Faces: {len(faces)}")
 
-    # Determine pivot/center point
+    # Determine pivot/center point (use primary object only to keep pivot stable)
     if args.no_center:
         center = None
     elif args.pivot:
         if args.pivot == 'center':
-            center = calculate_center(vertices)
+            center = calculate_center(pivot_vertices)
         elif args.pivot == 'top':
-            center = calculate_pivot_from_max_y(vertices)
+            center = calculate_pivot_from_max_y(pivot_vertices)
         elif args.pivot == 'bottom':
-            center = calculate_pivot_from_min_y(vertices)
+            center = calculate_pivot_from_min_y(pivot_vertices)
         else:
             # Parse x,y,z coordinates
             try:
@@ -367,7 +386,7 @@ def main():
                 print(f"Error: Invalid pivot format '{args.pivot}'. Use 'center', 'top', 'bottom', or 'x,y,z'")
                 return
     else:
-        center = calculate_center(vertices)
+        center = calculate_center(pivot_vertices)
 
     if center:
         print(f"  Pivot: ({center[0]:.2f}, {center[1]:.2f}, {center[2]:.2f})")

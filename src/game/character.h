@@ -62,8 +62,9 @@ bool initCharacter(Character *chr,
 
 /* Update character animation based on turn and forward/backward input
  * turnInput: -1 = turn left, 0 = no turn, +1 = turn right
- * forwardInput: -1 = backward, 0 = no movement, +1 = forward */
-void updateCharacter(Character *chr, int16_t turnInput, int16_t forwardInput);
+ * forwardInput: -1 = backward, 0 = no movement, +1 = forward
+ * deltaTime: frame time in 8.8 fixed point (256 = 1.0 = normal frame) */
+void updateCharacter(Character *chr, int16_t turnInput, int16_t forwardInput, int deltaTime);
 
 /* Draw character to DMA chain (uses camera's view matrix for proper 3D transform) */
 void drawCharacter(DMAChain *chain, Character *chr, const Camera *cam);

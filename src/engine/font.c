@@ -180,3 +180,60 @@ void printString(
 		currentX += sprite->width;
 	}
 }
+
+void printStringColor(
+	DMAChain          *chain,
+	const TextureInfo *font,
+	int               x,
+	int               y,
+	const char        *str,
+	uint8_t           r,
+	uint8_t           g,
+	uint8_t           b
+) {
+	int currentX = x, currentY = y;
+
+	uint32_t *ptr;
+
+	// Send a texpage command to tell the GPU to use the font's spritesheet.
+	ptr    = allocatePacket(chain, 1, 1);
+	ptr[0] = gp0_texpage(font->page, false, false);
+
+	// Iterate over every character in the string.
+	for (; *str; str++) {
+		char ch = *str;
+
+		// Handle special characters.
+		switch (ch) {
+			case '\t':
+				currentX += FONT_TAB_WIDTH - 1;
+				currentX -= currentX % FONT_TAB_WIDTH;
+				continue;
+
+			case '\n':
+				currentX  = x;
+				currentY += FONT_LINE_HEIGHT;
+				continue;
+
+			case ' ':
+				currentX += FONT_SPACE_WIDTH;
+				continue;
+
+			case '\x80' ... '\xff':
+				ch = '\x7f';
+				break;
+		}
+
+		const SpriteInfo *sprite = &fontSprites[ch - FONT_FIRST_TABLE_CHAR];
+
+		// Draw the character with color modulation (shaded textured rectangle).
+		// unshaded=false means the RGB color will be applied to the texture.
+		ptr    = allocatePacket(chain, 0, 4);
+		ptr[0] = gp0_rectangle(true, false, true) | gp0_rgb(r, g, b);
+		ptr[1] = gp0_xy(currentX, currentY);
+		ptr[2] = gp0_uv(font->u + sprite->x, font->v + sprite->y, font->clut);
+		ptr[3] = gp0_xy(sprite->width, sprite->height);
+
+		currentX += sprite->width;
+	}
+}
