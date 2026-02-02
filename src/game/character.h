@@ -88,6 +88,19 @@ void drawCharacterItem(DMAChain *chain, Character *chr, const Model *item, const
 void drawWorldItem(DMAChain *chain, const Model *item, const Camera *cam,
 	int32_t worldX, int32_t worldY, int32_t worldZ, int16_t rotation, int16_t scale);
 
+/* Draw enforcer with animated legs
+ * bodyModel: body + head model
+ * legLeftModel, legRightModel: leg models with pivot at top (hip)
+ * x, y, z: position in fixed-point 20.12 format
+ * facing: direction (0-4095)
+ * walkCycle: animation timer (0-4095)
+ * isWalking: true if enforcer is moving */
+void drawEnforcer(DMAChain *chain,
+	const Model *bodyModel, const Model *legLeftModel, const Model *legRightModel,
+	int32_t x, int32_t y, int32_t z, int16_t facing,
+	int16_t walkCycle, bool isWalking,
+	const Camera *cam);
+
 #ifdef __cplusplus
 }
 #endif

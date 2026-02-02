@@ -62,6 +62,12 @@ convertImage(
 	lander/grassTexture.dat
 )
 
+# Convert title screen image from PNG to raw 16bpp data (256x256)
+convertImage(
+	assets/cool.png 16
+	lander/titleTexture.dat
+)
+
 # Convert sound effect WAV to SPU-ADPCM format for embedding (bite sound)
 # Using 22050 Hz mono for better quality on short sound effects
 add_custom_command(
@@ -716,6 +722,51 @@ add_custom_command(
 	VERBATIM
 )
 
+# Convert enforcer model parts separately for leg animation
+# Body + head combined (no animation needed)
+add_custom_command(
+	OUTPUT "${PROJECT_BINARY_DIR}/lander/enforcerBody.bin"
+	DEPENDS "${PROJECT_SOURCE_DIR}/assets/enforcer.obj"
+	COMMAND
+		"${Python3_EXECUTABLE}"
+		"${PROJECT_SOURCE_DIR}/tools/convertCharacter.py"
+		"${PROJECT_SOURCE_DIR}/assets/enforcer.obj"
+		"${PROJECT_BINARY_DIR}/lander/enforcerBody.bin"
+		"-o" "enforcer_body" "enforcer_head"
+		"-s" "20.0"
+	VERBATIM
+)
+
+# Left leg (pivot at top = hip joint)
+add_custom_command(
+	OUTPUT "${PROJECT_BINARY_DIR}/lander/enforcerLegLeft.bin"
+	DEPENDS "${PROJECT_SOURCE_DIR}/assets/enforcer.obj"
+	COMMAND
+		"${Python3_EXECUTABLE}"
+		"${PROJECT_SOURCE_DIR}/tools/convertCharacter.py"
+		"${PROJECT_SOURCE_DIR}/assets/enforcer.obj"
+		"${PROJECT_BINARY_DIR}/lander/enforcerLegLeft.bin"
+		"-o" "enforcer_Feet_Left"
+		"-s" "20.0"
+		"--pivot" "top"
+	VERBATIM
+)
+
+# Right leg (pivot at top = hip joint)
+add_custom_command(
+	OUTPUT "${PROJECT_BINARY_DIR}/lander/enforcerLegRight.bin"
+	DEPENDS "${PROJECT_SOURCE_DIR}/assets/enforcer.obj"
+	COMMAND
+		"${Python3_EXECUTABLE}"
+		"${PROJECT_SOURCE_DIR}/tools/convertCharacter.py"
+		"${PROJECT_SOURCE_DIR}/assets/enforcer.obj"
+		"${PROJECT_BINARY_DIR}/lander/enforcerLegRight.bin"
+		"-o" "enforcer_Feet_Right"
+		"-s" "20.0"
+		"--pivot" "top"
+	VERBATIM
+)
+
 # Convert house models from OBJ to binary format (with vertex colors)
 # House 1
 add_custom_command(
@@ -904,6 +955,9 @@ addBinaryFile(lander fontPalette "${PROJECT_BINARY_DIR}/lander/fontPalette.dat")
 # Embed grass texture data into executable (32x32 16bpp)
 addBinaryFile(lander grassTexture "${PROJECT_BINARY_DIR}/lander/grassTexture.dat")
 
+# Embed title screen texture data into executable (256x256 16bpp)
+addBinaryFile(lander titleTexture "${PROJECT_BINARY_DIR}/lander/titleTexture.dat")
+
 # Embed sound effects data into executable (SPU-ADPCM format)
 # Music uses CDDA from disc, SFX uses SPU samples
 addBinaryFileWithSize(lander sfxBiteData sfxBiteData_size "${PROJECT_BINARY_DIR}/lander/musicData.spu")
@@ -931,6 +985,11 @@ addBinaryFileWithSize(lander foodBoxData foodBoxData_size "${PROJECT_BINARY_DIR}
 
 # Embed mask model
 addBinaryFileWithSize(lander maskData maskData_size "${PROJECT_BINARY_DIR}/lander/mask.bin")
+
+# Embed enforcer model parts (body+head, left leg, right leg)
+addBinaryFileWithSize(lander enforcerBodyData enforcerBodyData_size "${PROJECT_BINARY_DIR}/lander/enforcerBody.bin")
+addBinaryFileWithSize(lander enforcerLegLeftData enforcerLegLeftData_size "${PROJECT_BINARY_DIR}/lander/enforcerLegLeft.bin")
+addBinaryFileWithSize(lander enforcerLegRightData enforcerLegRightData_size "${PROJECT_BINARY_DIR}/lander/enforcerLegRight.bin")
 
 # Embed adult male (dad) character body part data into executable
 addBinaryFileWithSize(lander dadBodyData dadBodyData_size "${PROJECT_BINARY_DIR}/lander/dadBody.bin")
@@ -974,20 +1033,34 @@ addBinaryFileWithSize(lander treeSmallData treeSmallData_size "${PROJECT_BINARY_
 addBinaryFileWithSize(lander restaurantData restaurantData_size "${PROJECT_BINARY_DIR}/lander/restaurant.bin")
 addBinaryFileWithSize(lander restaurantIntData restaurantIntData_size "${PROJECT_BINARY_DIR}/lander/restaurant_interior.bin")
 
-# Web build target - creates a zip file with all web assets
-# Creates lander.zip (ROM) and web_build.zip (full distribution)
+# Web build target - creates proper PS1 CD image with mkpsxiso
+# Creates lander.rom (zip of .bin+.cue) and web_build.zip (full distribution for itch.io)
+set(MKPSXISO "${PROJECT_SOURCE_DIR}/tools/mkpsxiso/mkpsxiso.exe")
+set(ISO_WORK_DIR "${PROJECT_BINARY_DIR}/iso_work")
+set(WEB_ROM_DIR "${PROJECT_SOURCE_DIR}/web/rom")
+
 add_custom_target(build-web
 	DEPENDS lander.psexe
-	COMMAND ${CMAKE_COMMAND} -E echo "Creating web distribution..."
-	# Create rom directory if it doesn't exist
-	COMMAND ${CMAKE_COMMAND} -E make_directory "${PROJECT_SOURCE_DIR}/web/rom"
-	# Create lander.zip containing the psexe (renamed to .bin for EmulatorJS compatibility)
-	COMMAND ${CMAKE_COMMAND} -E copy "${PROJECT_BINARY_DIR}/lander.psexe" "${PROJECT_BINARY_DIR}/lander.bin"
-	COMMAND ${CMAKE_COMMAND} -E chdir "${PROJECT_BINARY_DIR}" ${CMAKE_COMMAND} -E tar cf "${PROJECT_SOURCE_DIR}/web/rom/lander.zip" --format=zip lander.bin
-	# Create full web distribution zip
-	COMMAND ${CMAKE_COMMAND} -E chdir "${PROJECT_SOURCE_DIR}/web" ${CMAKE_COMMAND} -E tar cf "${PROJECT_BINARY_DIR}/web_build.zip" --format=zip index.html rom/lander.zip
+	COMMAND ${CMAKE_COMMAND} -E echo "Creating web distribution with CD audio..."
+	# Create directories
+	COMMAND ${CMAKE_COMMAND} -E make_directory "${ISO_WORK_DIR}"
+	COMMAND ${CMAKE_COMMAND} -E make_directory "${WEB_ROM_DIR}"
+	# Copy psexe to iso work directory
+	COMMAND ${CMAKE_COMMAND} -E copy "${PROJECT_BINARY_DIR}/lander.psexe" "${ISO_WORK_DIR}/lander.psexe"
+	# Copy audio tracks
+	COMMAND ${CMAKE_COMMAND} -E copy "${PROJECT_SOURCE_DIR}/assets/Music/Intro_V3.wav" "${ISO_WORK_DIR}/track02_intro.wav"
+	COMMAND ${CMAKE_COMMAND} -E copy "${PROJECT_SOURCE_DIR}/assets/Music/Gameplay_Loop.wav" "${ISO_WORK_DIR}/track03_gameplay.wav"
+	# Run mkpsxiso to create proper CD image
+	COMMAND ${CMAKE_COMMAND} -E chdir "${ISO_WORK_DIR}" "${MKPSXISO}" -y iso.xml
+	# Copy bin/cue to web/rom
+	COMMAND ${CMAKE_COMMAND} -E copy "${ISO_WORK_DIR}/lander.bin" "${WEB_ROM_DIR}/lander.bin"
+	COMMAND ${CMAKE_COMMAND} -E copy "${ISO_WORK_DIR}/lander.cue" "${WEB_ROM_DIR}/lander.cue"
+	# Create lander.rom (zip of bin+cue for EmulatorJS)
+	COMMAND ${CMAKE_COMMAND} -E chdir "${WEB_ROM_DIR}" ${CMAKE_COMMAND} -E tar cf "${WEB_ROM_DIR}/lander.rom" --format=zip lander.bin lander.cue
+	# Create full web distribution zip with ALL required files for itch.io
+	COMMAND ${CMAKE_COMMAND} -E chdir "${PROJECT_SOURCE_DIR}/web" ${CMAKE_COMMAND} -E tar cf "${PROJECT_BINARY_DIR}/web_build.zip" --format=zip index.html bios data emulatorjs rom
 	COMMAND ${CMAKE_COMMAND} -E echo "Web build complete!"
-	COMMAND ${CMAKE_COMMAND} -E echo "  ROM: ${PROJECT_SOURCE_DIR}/web/rom/lander.zip"
+	COMMAND ${CMAKE_COMMAND} -E echo "  ROM: ${WEB_ROM_DIR}/lander.rom"
 	COMMAND ${CMAKE_COMMAND} -E echo "  Full package: ${PROJECT_BINARY_DIR}/web_build.zip"
 	VERBATIM
 )

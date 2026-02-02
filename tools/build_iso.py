@@ -252,19 +252,24 @@ def main():
         print(f"Created: {dest_bin} ({bin_size:.1f} MB)")
         print(f"Created: {dest_cue}")
 
-        # Create zip for EmulatorJS
+        # Create zip for EmulatorJS, renamed to .rom (itch.io blocks .zip)
         import zipfile
         dest_zip = OUTPUT_DIR / "lander.zip"
+        dest_rom = OUTPUT_DIR / "lander.rom"
         try:
             if dest_zip.exists():
                 dest_zip.unlink()
+            if dest_rom.exists():
+                dest_rom.unlink()
             with zipfile.ZipFile(dest_zip, 'w', zipfile.ZIP_DEFLATED) as zf:
                 zf.write(dest_bin, "lander.bin")
                 zf.write(dest_cue, "lander.cue")
-            zip_size = dest_zip.stat().st_size / (1024 * 1024)
-            print(f"Created: {dest_zip} ({zip_size:.1f} MB)")
+            # Rename to .rom for itch.io compatibility
+            dest_zip.rename(dest_rom)
+            rom_size = dest_rom.stat().st_size / (1024 * 1024)
+            print(f"Created: {dest_rom} ({rom_size:.1f} MB)")
         except Exception as e:
-            print(f"Warning: Could not create zip: {e}")
+            print(f"Warning: Could not create rom: {e}")
     else:
         print("ERROR: Output files not created")
         sys.exit(1)

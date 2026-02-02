@@ -13,7 +13,7 @@
 *============================================================================*/
 
 /* Movement speed (world units per frame) */
-#define PLAYER_MOVE_SPEED       30000
+#define PLAYER_MOVE_SPEED       20000
 
 /* Outdoor speed multiplier (256 = 1.0x, 512 = 2.0x, etc.) */
 #define OUTDOOR_SPEED_MULT      1024
@@ -37,7 +37,7 @@
 *============================================================================*/
 
 /* Walk cycle animation speed (higher = faster leg/arm movement) */
-#define WALK_CYCLE_SPEED            800     /* Outdoor walk cycle */
+#define WALK_CYCLE_SPEED            400     /* Outdoor walk cycle */
 #define WALK_CYCLE_SPEED_INTERIOR   300     /* Indoor walk cycle (slower) */
 
 /* Arm swing amplitude (angle units, max rotation from neutral) */
@@ -112,6 +112,9 @@
 /* Player collision radius (world units) */
 #define PLAYER_COLLISION_RADIUS 40
 
+/* Enforcer collision radius (world units) */
+#define ENFORCER_COLLISION_RADIUS 40
+
 /* Food box scale (4096 = 1.0x) */
 #define FOOD_BOX_SCALE          4096    /* 8192 = 2.0x */
 
@@ -121,7 +124,8 @@
 /* Mask rendering when worn by adults (attached to head) */
 #define MASK_OFFSET_Y           -50     /* Y offset from body center (negative = up toward head) */
 #define MASK_OFFSET_Z           20      /* Z offset (forward from face) */
-#define MASK_SCALE              4096    /* Scale (4096 = 1.0x) - doubled from 2048 */
+#define MASK_SCALE              4096    /* Scale (4096 = 1.0x) - for masks worn on adults' faces */
+#define MASK_CARRY_SCALE        4096    /* Scale when carried by player (1.0x) */
 
 /* Interaction radius for talking to NPCs / picking up items (world units) */
 #define INTERACT_RADIUS         150
@@ -412,3 +416,58 @@
 
 /* Spawn all hiding adults in the restaurant for testing (1 = enabled, 0 = disabled) */
 #define DEBUG_CHARACTERS        0
+
+/* Spawn an enforcer near the restaurant for testing (1 = enabled, 0 = disabled) */
+#define DEBUG_ENFORCER_NEARBY   0
+
+/* Show enforcers on pause map (1 = enabled, 0 = disabled) */
+#define DEBUG_VISUAL_AGENTS     0
+
+/* Allow SELECT button to skip to next day (1 = enabled, 0 = disabled) */
+#define DEBUG_SKIP_DAY          1
+
+/*============================================================================
+* ENFORCER SYSTEM
+*============================================================================*/
+
+/* Maximum enforcers (Day 5 = 5 enforcers) */
+#define MAX_ENFORCERS           5
+
+/* Maximum game days */
+#define MAX_DAYS                5
+
+/* Patrol area size (4x4 tiles = 2048 world units) */
+#define PATROL_HALF_SIZE        1024
+
+/* Enforcer movement speeds (compare: PLAYER_MOVE_SPEED = 30000) */
+#define ENFORCER_PATROL_SPEED   15000   /* Slow patrol */
+#define ENFORCER_CHASE_SPEED    45000   /* 1.5x player speed */
+
+/* Detection system */
+#define DETECTION_RANGE         1500    /* World units - can see player within this */
+#define DETECTION_CONE          682     /* ~60 degree half-angle in angle units */
+#define DETECTION_RATE          128     /* Meter fill per frame */
+#define DETECTION_MAX           4096    /* Meter full = chase begins */
+#define DETECTION_DECAY         64      /* Meter decay when player not visible */
+#define CHASE_TIMEOUT           (60 * 3 * 256)  /* 3 seconds before giving up chase */
+
+/* Patrol timing */
+#define WAYPOINT_PAUSE_TIME     (60 * 256)  /* 1 second pause at corners */
+
+/* Catch radius (when enforcer catches player) */
+#define CATCH_RADIUS            80
+
+/* Enforcer spawn Y position (same as floor) */
+#define ENFORCER_SPAWN_Y        FLOOR_Y
+
+/* Minimum distance from restaurant for enforcer patrol centers (10 tiles) */
+#define ENFORCER_MIN_RESTAURANT_DIST   (FLOOR_TILE_SIZE * 10)  /* 2560 world units */
+
+/* Enforcer visual scale and positioning */
+#define ENFORCER_SCALE          5096    /* 1.0x scale (same as other characters) */
+#define ENFORCER_Y_OFFSET       -100    /* Y offset to position feet on ground */
+#define ENFORCER_LEG_OFFSET_X   8       /* Leg X offset from body center (hip width) */
+#define ENFORCER_LEG_OFFSET_Y   0       /* Leg Y offset from body (hip height) */
+
+/* Threat level display strings */
+static const char *THREAT_LEVELS[] = {"Low", "Moderate", "High", "Severe", "Critical"};

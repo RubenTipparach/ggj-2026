@@ -51,8 +51,15 @@
     <script>
         window.EJS_player = '#game';
         window.EJS_core = 'pcsx_rearmed';  // Explicitly use pcsx_rearmed core
-        // Load zip file (contains bin + cue for CD-DA audio support)
-        window.EJS_gameUrl = 'rom/lander.zip?v=' + Date.now();
+
+        // Detect base path for itch.io compatibility
+        // This handles both local testing and itch.io iframe embedding
+        var basePath = window.location.href.substring(0, window.location.href.lastIndexOf('/') + 1);
+        console.log('Base path:', basePath);
+
+        // Load .rom file (renamed .zip - itch.io blocks .zip with 403)
+        // Contains lander.bin + lander.cue for CD audio support
+        window.EJS_gameUrl = basePath + 'rom/lander.rom';
         window.EJS_pathtodata = 'https://cdn.emulatorjs.org/stable/data/';
         window.EJS_startOnLoaded = true;
         // Provide OpenBIOS

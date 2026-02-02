@@ -1,0 +1,412 @@
+================================================================================
+ELMORIAN CRISIS - NPC DIALOG BANTER
+================================================================================
+
+This document contains dialog lines for house NPCs across the 5-day campaign.
+Each NPC is assigned one of 5 personality archetypes at the start of each day.
+
+ARCHETYPES:
+- GRUFF    : Angry, short-tempered, confrontational
+- NERVOUS  : Anxious, paranoid, speaks quickly
+- FRIENDLY : Positive, warm, tries to stay hopeful
+- SNOBY    : Dismissive, superior attitude, complains about everything
+- CONFUSED : Disoriented, asks questions, doesn't understand the situation
+
+================================================================================
+DAY 1 - THREAT LEVEL: LOW
+================================================================================
+General mood: Mild annoyance, life continues mostly normally.
+Context: New enforcement policies announced, but most see it as bureaucracy.
+
+--- MOM'S INSTRUCTIONS (Restaurant Interior) ---
+
+	"Good morning dear! I have prepared some food\n" \
+	"for our neighbors. Can you please deliver\n" \
+	"them for me?"
+  
+   "Don't be late for supper!"
+--- MOM'S COMMENTARY (State of Affairs) ---
+
+"Did you hear about that the enforcers are in town? Apparently they're here to help the police clean up the streets."
+
+"Business has been slow. People are staying home more."
+
+"Try not to worry, sweetie. Everything will be back to normal soon."
+
+--- FOOD REJECTION (Wrong House) ---
+
+GRUFF:
+"I didn't order anything. You got the wrong house."
+[Follow-up] "What, you deaf? I said WRONG HOUSE. Now scram!"
+[Follow-up] "These delivery kids today... can't even read an address."
+
+NERVOUS:
+"Oh! Um, no, I don't think that's for me? Did someone send this?"
+[Follow-up] "Are you sure? Let me check... no, no I definitely didn't order."
+[Follow-up] "Sorry, sorry! Maybe try next door?"
+
+FRIENDLY:
+"Oh honey, I think there's been a mix-up! I didn't order anything today."
+[Follow-up] "No worries though! Mistakes happen. Good luck finding the right house!"
+[Follow-up] "Such a nice young person, working hard. Stay safe out there!"
+
+SNOBY:
+"Excuse me? I don't eat... whatever THAT is. Check your list again."
+[Follow-up] "Honestly, the service quality these days is appalling."
+[Follow-up] "I only order from establishments with proper credentials."
+
+CONFUSED:
+"Food? Did I order food? I don't remember ordering food..."
+[Follow-up] "Wait, what day is it? Maybe I did order something..."
+[Follow-up] "No, no... I think you want someone else. Maybe."
+
+--- WORLD COMMENTARY ---
+
+GRUFF:
+"Did you see those new 'enforcers' walking around? Waste of taxpayer money."
+"Another day, another stupid new policy from the Empire."
+
+NERVOUS:
+"Have you noticed more patrols lately? I'm sure it's nothing..."
+"They say it's just temporary measures. That's what they always say."
+
+FRIENDLY:
+"Beautiful day, isn't it? Despite all the news, gotta appreciate the small things!"
+"I heard they're just doing routine checks. Nothing to worry about!"
+
+SNOBY:
+"The neighborhood is getting so crowded with all these officials."
+"I suppose SOME regulation is necessary for the lesser districts."
+
+CONFUSED:
+"Why are there so many people in uniforms? Is there a parade?"
+"Someone mentioned new laws? I really should read the news more..."
+
+================================================================================
+DAY 2 - THREAT LEVEL: MODERATE
+================================================================================
+General mood: Growing concern, news of workplace arrests.
+Context: Reports of people being detained at their jobs. Tension rising.
+
+--- MOM'S INSTRUCTIONS (Restaurant Interior) ---
+
+"Another delivery today, sweetie. Be extra careful out there, come straight home when you're done."
+
+
+--- MOM'S COMMENTARY (State of Affairs) ---
+
+"Your father called. He said he talked to the chief of police. The chief said he's got a guy on the inside making sure they don't arrest kids."
+
+"Some of the delivery drivers never showed up for their shifts today. I hope they're ok."
+
+"Promise me you'll come straight home, okay?"
+
+--- FOOD REJECTION (Wrong House) ---
+
+GRUFF:
+"Not mine. And keep your voice down - enforcers are everywhere."
+[Follow-up] "You think I ordered food at a time like this? Get lost!"
+[Follow-up] "Everyone's losing their minds and you're delivering takeout?"
+
+NERVOUS:
+"No no no, that's not mine! Please, just... just go, okay?"
+[Follow-up] "I can't have people coming to my door right now!"
+[Follow-up] "What if they think I'm... never mind, just please leave!"
+
+FRIENDLY:
+"That's not mine, sweetie, but be careful out there, okay?"
+[Follow-up] "Did you hear about the arrests? Stay safe, dear."
+[Follow-up] "Times are getting strange. Look after yourself!"
+
+SNOBY:
+"I haven't ordered anything. Unlike SOME people, I stay home where it's safe."
+[Follow-up] "Running around making deliveries... how quaint."
+[Follow-up] "At least MY papers are in order."
+
+CONFUSED:
+"Hmm? No, I don't think so. Did my neighbor order this?"
+[Follow-up] "Actually, where IS my neighbor? Haven't seen them today..."
+[Follow-up] "Lots of people seem to be staying inside lately."
+
+--- WORLD COMMENTARY ---
+
+GRUFF:
+"They took three people from the factory yesterday. Just dragged them out."
+"This 'enforcement' is getting out of hand. Someone needs to push back."
+
+NERVOUS:
+"My coworker didn't show up today. No one knows where she went."
+"I heard they're checking documents at random now. RANDOM!"
+
+FRIENDLY:
+"My friend's husband got detained at work. She's devastated, poor thing."
+"We have to stay positive. I'm sure this will all blow over soon..."
+
+SNOBY:
+"Well, if people kept their documents in order, there wouldn't be problems."
+"I heard it's only affecting the lower sectors. Not OUR concern."
+
+CONFUSED:
+"People are talking about arrests? What do you mean, arrests?"
+"I thought the Empire was supposed to protect us?"
+
+================================================================================
+DAY 3 - THREAT LEVEL: HIGH
+================================================================================
+General mood: Fear and anger building. Community fracturing.
+Context: Protests beginning, neighbors disappearing overnight.
+
+--- MOM'S INSTRUCTIONS (Restaurant Interior) ---
+
+"We're barely hanging on hun. I really need you to help out the shop today."
+
+--- MOM'S COMMENTARY (State of Affairs) ---
+
+"Protestors gathered outside our shop this morning. The enforcers came bay and tear gassed them all. What nerve! They were protesting peacefully!"
+
+"Please be careful. You're all I have left."
+
+--- FOOD REJECTION (Wrong House) ---
+
+GRUFF:
+"Wrong house! And if you're smart, you'll stay off the streets!"
+[Follow-up] "There's a protest down at the square. Things are getting ugly."
+[Follow-up] "The Empire's gone too far this time. Mark my words."
+
+NERVOUS:
+"NOT MINE! Oh stars, please don't knock so loud!"
+[Follow-up] "They came for the Velnars last night. Just... gone."
+[Follow-up] "I haven't slept in days. Every noise could be THEM."
+
+FRIENDLY:
+"Oh, that's not mine, but... you shouldn't be out here alone."
+[Follow-up] "The Hendricks family across the street - vanished yesterday."
+[Follow-up] "Some people are gathering to protest. Maybe there's still hope."
+
+SNOBY:
+"Wrong address. Frankly, I'm surprised you're still working at all."
+[Follow-up] "Those protesters are going to make things worse for everyone."
+[Follow-up] "If people would just COMPLY, we wouldn't have these problems."
+
+CONFUSED:
+"What? No, that's not... wait, did you hear that noise outside?"
+[Follow-up] "Where did the Martins go? Their house has been dark for days."
+[Follow-up] "I don't understand what's happening anymore."
+
+--- WORLD COMMENTARY ---
+
+GRUFF:
+"Half my street is empty now. WHERE ARE THEY TAKING PEOPLE?"
+"I'm done being quiet. If they come for me, I'll go down fighting."
+
+NERVOUS:
+"I heard screaming from next door last night. This morning - silence."
+"I've packed a bag. Just in case. You should too."
+
+FRIENDLY:
+"Some brave souls are protesting. I wish I was as courageous."
+"We have to stick together. That's the only way through this."
+
+SNOBY:
+"The property values on this street are going to plummet."
+"I've filed complaints with every office. Not that anyone listens."
+
+CONFUSED:
+"So many empty houses now. Did everyone go on vacation?"
+"Why won't anyone tell me what's going on?"
+
+================================================================================
+DAY 4 - THREAT LEVEL: SEVERE
+================================================================================
+General mood: Terror. Open violence against dissenters.
+Context: Enforcers breaking into homes, protesters attacked in streets.
+
+--- MOM'S INSTRUCTIONS (Restaurant Interior) ---
+
+"I don't want you going out today. I'm just waiting for the substitute driver for Mr. Bito."
+
+--- MOM'S COMMENTARY (State of Affairs) ---
+
+"I heard enforcers kicking down the neighbors door last night. I couldn't sleep after."
+
+"They're going door to door. If they knock here, run and hide in the closet. Don't answer the door for any strangers."
+
+"I love you. I need you to know that. Whatever happens."
+
+--- FOOD REJECTION (Wrong House) ---
+
+GRUFF:
+"WHAT? No - get inside, quick, before they see you!"
+[Follow-up] "Enforcers beat a group of protesters this morning. In broad daylight."
+[Follow-up] "This isn't enforcement anymore. This is occupation."
+
+NERVOUS:
+"*whispers* Wrong house, wrong house! They're watching!"
+[Follow-up] "They broke down the door across the street. Just smashed it in."
+[Follow-up] "I've barricaded everything. Please just go!"
+
+FRIENDLY:
+"Not mine, dear, but please - come inside for a moment. It's not safe."
+[Follow-up] "They're attacking anyone on the streets now."
+[Follow-up] "I pray for us all. What have we become?"
+
+SNOBY:
+"For the last time - WRONG! And close that door, you're letting fear in!"
+[Follow-up] "This is what happens when the rabble makes trouble."
+[Follow-up] "...Although even I must admit, this seems... excessive."
+
+CONFUSED:
+"I... I don't know. I don't know anything anymore."
+[Follow-up] "Why are they hurting people? I don't understand."
+[Follow-up] "My daughter was supposed to visit. She never came."
+
+--- WORLD COMMENTARY ---
+
+GRUFF:
+"They're kicking in doors without warrants. Without REASON."
+"This is war. They just haven't officially declared it yet."
+
+NERVOUS:
+"I watched them drag someone from their home. They were screaming."
+"I want to help, but I'm so scared. I'm so scared."
+
+FRIENDLY:
+"Even in darkness, we must be lights for each other."
+"I've been hiding neighbors in my basement. Don't tell anyone."
+
+SNOBY:
+"I... I never thought they'd come to THIS district."
+"Perhaps I was wrong about some things. Perhaps."
+
+CONFUSED:
+"They took my neighbor. She was crying for help. I didn't know what to do."
+"Is this still the same world I woke up in?"
+
+================================================================================
+DAY 5 - THREAT LEVEL: CRITICAL
+================================================================================
+General mood: Defiance in despair. Final stand.
+Context: Most houses empty. Survivors gathering at town square in solidarity.
+
+--- MOM IS GONE (Restaurant Interior) ---
+
+[Mom is not here. The restaurant is empty. A food box sits on the floor
+near the counter, with a handwritten note tucked underneath.]
+
+NOTE FROM MOM:
+
+-- there's no note --
+
+--- FOOD REJECTION (Wrong House) ---
+
+GRUFF:
+"Wrong house, kid. But you've got guts being out here."
+[Follow-up] "Most of us are heading to the square. This ends TODAY."
+[Follow-up] "The Empire will pay for what they've done. Every last credit."
+
+NERVOUS:
+"N-not mine, but... wait. Are you helping people?"
+[Follow-up] "I can't hide anymore. I'm going to the square."
+[Follow-up] "If this is the end, I won't face it cowering in my home."
+
+FRIENDLY:
+"Oh, that's not mine, but bless you for still trying to help."
+[Follow-up] "Everyone's gathering at the square. United at last."
+[Follow-up] "Whatever happens next, we face it together."
+
+SNOBY:
+"Wrong. But... I suppose none of that matters now, does it?"
+[Follow-up] "I was a fool. I should have spoken up sooner."
+[Follow-up] "I'm going to the square. First time I've done something that matters."
+
+CONFUSED:
+"Hmm? Oh, not mine. But somehow... I feel clear now."
+[Follow-up] "When everything falls apart, you finally see what's important."
+[Follow-up] "The square. That's where I need to be."
+
+--- WORLD COMMENTARY ---
+
+GRUFF:
+"Look at these empty streets. They took almost everyone."
+"The Galactic Council will hear about this. And if they don't act, WE WILL."
+
+NERVOUS:
+"I'm done being afraid. Fear doesn't keep you safe. It keeps you silent."
+"We're all meeting at the square. Even if it's the last thing we do."
+
+FRIENDLY:
+"So many lost. But those of us left - we're a family now."
+"The masks you're delivering... you're giving people hope. You're a hero."
+
+SNOBY:
+"My status, my wealth... none of it protected me. None of it protected THEM."
+"I finally understand. We either stand together or fall alone."
+
+CONFUSED:
+"Everything makes sense now. Isn't that strange? In all this chaos..."
+"The square. That's where hope is. I can feel it."
+
+================================================================================
+GAME ENDING - FINAL MASK DELIVERED
+================================================================================
+
+After delivering the final mask, display ending sequence:
+
+"A few Elmorians saved. It wasn't enough. It's never enough.
+
+Your neighbors got together to hire a lawyer to track down your parents.
+
+The ship leaves tomorrow with a rag tag crew to go bring them home.
+
+You join your uncle to embark on the adventure.
+
+But word has spread of your courage. Your actions rallied the people, and gave them hope.
+
+The Galactic Council has paused the deportations while they assess
+the 'efficacy' of the Empire's enforcement methods.
+
+At the square, hundreds stand in silent solidarity.
+Watching. Waiting.
+
+The final fate of the remaining Elmorians is still to be determined.
+
+But for now - for this moment - they are not alone.
+
+And sometimes, that's all that matters."
+
+[CREDITS]
+
+================================================================================
+IMPLEMENTATION NOTES
+================================================================================
+
+1. Assign personality randomly to each NPC at start of day
+2. Store personality in NPC data so it persists through the day
+3. When player delivers to wrong house:
+   - Show initial rejection line
+   - If player interacts again, show follow-up lines
+4. Random chance to show world commentary when entering/exiting houses
+5. Commentary should match the day's events and NPC personality
+6. On the last day (Day 5) your mother is gone, and she left the last box
+   of food on the ground with a farewell note.
+
+MOM'S DIALOG PROGRESSION:
+- Day 1: Optimistic, thinks it's temporary, gives delivery instructions
+- Day 2: Growing concern, mentions arrests, tells child to be careful
+- Day 3: Frightened, mentions disappearances, prepares for worst case
+- Day 4: Terrified, gives survival instructions, expresses love
+- Day 5: GONE - only a letter remains (the note triggers automatically)
+
+Mom should comment on state of affairs when:
+- Player returns to restaurant between deliveries
+- Player talks to her before leaving on the day's delivery
+- Random chance during dialog (pick one line from commentary)
+
+DIALOG TRIGGER PRIORITY:
+1. Mom's delivery instructions (first interaction of the day)
+2. Mom's state commentary (subsequent interactions)
+3. Food delivery response (accept/reject at houses)
+4. Follow-up if rejected (on second interaction)
+5. World commentary from NPCs (random chance)
+
+================================================================================

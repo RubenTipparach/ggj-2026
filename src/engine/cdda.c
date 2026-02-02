@@ -144,35 +144,26 @@ void initCDDA(void) {
 	waitResponse(response, 8);  /* Init sends two responses */
 	printf("CDDA: CD-ROM ready\n");
 
-	/* Get track count (GETTD track 0 returns total tracks) */
-	uint8_t param = 0;
-	sendCommandParams(CDL_GETTD, &param, 1);
-	waitResponse(response, 8);
-	numTracks = fromBCD(response[2]);
+	/* Set track count - our disc has 3 tracks (1 data + 2 audio) */
+	/* Note: GETTD track 0 returns disc end time, not track count */
+	numTracks = 3;
 	printf("CDDA: %d tracks on disc\n", numTracks);
 
-	if (numTracks < 2) {
-		printf("CDDA: No audio tracks\n");
-		return;
-	}
-
-	/* Get position of track 2 (first audio track) */
-	param = toBCD(2);
+	/* Get position of track 2 (intro music) */
+	uint8_t param = toBCD(2);
 	sendCommandParams(CDL_GETTD, &param, 1);
 	waitResponse(response, 8);
 	trackMinute[2] = response[1];  /* Already BCD */
 	trackSecond[2] = response[2];
 	printf("CDDA: Track 2 at %02X:%02X:00\n", trackMinute[2], trackSecond[2]);
 
-	/* Get position of track 3 (gameplay loop) if it exists */
-	if (numTracks >= 3) {
-		param = toBCD(3);
-		sendCommandParams(CDL_GETTD, &param, 1);
-		waitResponse(response, 8);
-		trackMinute[3] = response[1];
-		trackSecond[3] = response[2];
-		printf("CDDA: Track 3 at %02X:%02X:00\n", trackMinute[3], trackSecond[3]);
-	}
+	/* Get position of track 3 (gameplay loop) */
+	param = toBCD(3);
+	sendCommandParams(CDL_GETTD, &param, 1);
+	waitResponse(response, 8);
+	trackMinute[3] = response[1];
+	trackSecond[3] = response[2];
+	printf("CDDA: Track 3 at %02X:%02X:00\n", trackMinute[3], trackSecond[3]);
 
 	/* Demute CD audio */
 	sendCommand(CDL_DEMUTE);
@@ -180,7 +171,7 @@ void initCDDA(void) {
 	printf("CDDA: Demuted\n");
 
 	cddaInitialized = true;
-	printf("CDDA: Ready (no auto-play)\n");
+	printf("CDDA: Ready\n");
 }
 
 void playCDDATrack(int track) {

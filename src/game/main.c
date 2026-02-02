@@ -154,6 +154,14 @@ extern const uint32_t citizen2LegLeftData_size;
 extern const uint8_t citizen2LegRightData[];
 extern const uint32_t citizen2LegRightData_size;
 
+/* Enforcer model parts embedded by CMake */
+extern const uint8_t enforcerBodyData[];
+extern const uint32_t enforcerBodyData_size;
+extern const uint8_t enforcerLegLeftData[];
+extern const uint32_t enforcerLegLeftData_size;
+extern const uint8_t enforcerLegRightData[];
+extern const uint32_t enforcerLegRightData_size;
+
 /* Number of houses - use map data */
 #define NUM_HOUSES NUM_MAP_HOUSES
 
@@ -163,6 +171,9 @@ extern const uint8_t fontPalette[];
 
 /* Grass texture data embedded by CMake (32x32 16bpp) */
 extern const uint8_t grassTexture[];
+
+/* Title screen texture data embedded by CMake (256x256 16bpp) */
+extern const uint8_t titleTexture[];
 
 /* Sound effects data embedded by CMake (SPU-ADPCM format) */
 /* Music uses CD-DA from disc tracks */
@@ -181,6 +192,10 @@ extern const uint32_t sfxStepWoodData_size;
 /* Grass texture dimensions (32x32 16bpp) */
 #define GRASS_TEX_WIDTH   32
 #define GRASS_TEX_HEIGHT  32
+
+/* Title screen texture dimensions (256x256 16bpp) */
+#define TITLE_TEX_WIDTH   256
+#define TITLE_TEX_HEIGHT  256
 
 /* GTE uses 20.12 fixed-point format */
 #define ONE (1 << 12)
@@ -275,6 +290,18 @@ int main(int argc, const char **argv)
 	renderingSetGrassTexture(&grassTex);
 	puts("Grass texture uploaded to VRAM");
 
+	/* Upload title screen texture to VRAM (256x256 16bpp) */
+	TextureInfo titleTex;
+	uploadTexture(
+		&titleTex,
+		titleTexture,
+		SCREEN_WIDTH * 2,          /* Image X = 640 */
+		0,                         /* Image Y = 0 (top of texture page) */
+		TITLE_TEX_WIDTH,
+		TITLE_TEX_HEIGHT
+	);
+	puts("Title texture uploaded to VRAM");
+
 	/* Initialize SPU */
 	setupSPU();
 	puts("SPU initialized");
@@ -300,13 +327,14 @@ int main(int argc, const char **argv)
 		printf("SPU: Wood step SFX uploaded to 0x%05lX\n", (unsigned long)sfxStepWoodAddr);
 	}
 
-	/* Unmute SPU */
-	spuUnmute();
-	puts("SPU initialized");
-
 	/* Initialize CD-DA for music playback */
+	/* NOTE: Do this BEFORE spuUnmute() since initCDDA() touches SPU_CTRL */
 	initCDDA();
 	puts("CD-DA initialized");
+
+	/* Unmute SPU AFTER CD-DA init */
+	spuUnmute();
+	puts("SPU initialized");
 
 	/* Music state - uses CD-DA tracks */
 	#define CDDA_TRACK_INTRO 2     /* Track 2: Intro music */
@@ -314,7 +342,7 @@ int main(int argc, const char **argv)
 	#define MUSIC_NONE 0
 	#define MUSIC_INTRO 1
 	#define MUSIC_GAMEPLAY 2
-	int currentMusic = MUSIC_NONE;
+	int currentMusic = MUSIC_NONE;  /* Music starts when player presses Start */
 	bool showingCredits = false;
 	int32_t creditsTimer = 0;
 	#define CREDITS_DURATION (60 * 5)  /* 5 seconds total at 60fps */
@@ -576,6 +604,22 @@ int main(int argc, const char **argv)
 	}
 	puts("Mask model loaded!");
 
+	/* Load enforcer model parts (body+head, left leg, right leg) */
+	Model enforcerBodyModel, enforcerLegLeftModel, enforcerLegRightModel;
+	if (!loadCharacterModel(&enforcerBodyModel, enforcerBodyData, enforcerBodyData_size)) {
+		puts("Failed to load enforcer body!");
+		return 1;
+	}
+	if (!loadCharacterModel(&enforcerLegLeftModel, enforcerLegLeftData, enforcerLegLeftData_size)) {
+		puts("Failed to load enforcer left leg!");
+		return 1;
+	}
+	if (!loadCharacterModel(&enforcerLegRightModel, enforcerLegRightData, enforcerLegRightData_size)) {
+		puts("Failed to load enforcer right leg!");
+		return 1;
+	}
+	puts("Enforcer model parts loaded!");
+
 	/* Load house model templates (3 types) */
 	Model houseModels[3];
 	if (!loadCharacterModel(&houseModels[0], house1Data, house1Data_size)) {
@@ -750,6 +794,7 @@ int main(int argc, const char **argv)
 	int32_t entryPosZ = 0;
 	int16_t entryFacing = 0;
 	bool transitionToInterior = false;
+	bool caughtTransition = false;  /* True when transitioning due to enforcer catch */
 	int frameCounter = 0;
 
 	/* Intro text state */
@@ -761,7 +806,9 @@ int main(int argc, const char **argv)
 	int currentDay = 1;
 
 	/* Mom/delivery state */
-	bool talkedToMom = false;
+	int momInstructionIndex = 0;      /* Which instruction line we're on */
+	bool instructionsDone = false;    /* All instructions heard, food spawns */
+	int momCommentaryIndex = 0;       /* Which commentary line (cycles) */
 	bool talkedToMomAboutMasks = false;
 	bool hasFood = false;
 	bool hasMask = false;
@@ -781,6 +828,9 @@ int main(int argc, const char **argv)
 	} HidingAdult;
 	HidingAdult hidingAdults[NUM_HIDING_ADULTS];
 
+	/* Track which house the food is meant for each day */
+	int correctFoodHouse = currentDay % NUM_HOUSES;
+
 	/* Initialize hiding adults for the day */
 	for (int i = 0; i < NUM_HIDING_ADULTS; i++) {
 #if DEBUG_CHARACTERS
@@ -790,8 +840,12 @@ int main(int argc, const char **argv)
 		hidingAdultChars[i].y = HIDING_ADULT_POS_Y << 12;
 		hidingAdultChars[i].z = HIDING_ADULT_POS_Z << 12;
 #else
-		/* Randomly assign to houses (using simple PRNG based on frame) */
-		hidingAdults[i].houseIndex = (i * 3 + currentDay) % NUM_HOUSES;
+		/* Randomly assign to houses - MUST avoid the food delivery house! */
+		int candidateHouse = (i * 3 + currentDay) % NUM_HOUSES;
+		if (candidateHouse == correctFoodHouse) {
+			candidateHouse = (candidateHouse + 1) % NUM_HOUSES;
+		}
+		hidingAdults[i].houseIndex = candidateHouse;
 		/* Position in house interior */
 		hidingAdultChars[i].x = HOUSE_ADULT_POS_X << 12;
 		hidingAdultChars[i].y = HOUSE_ADULT_POS_Y << 12;
@@ -801,8 +855,64 @@ int main(int argc, const char **argv)
 		hidingAdults[i].isMale = true;  /* Male adult */
 	}
 
-	/* Track which house the food is meant for each day */
-	int correctFoodHouse = currentDay % NUM_HOUSES;
+	/* Track if mask was delivered this day (for day end trigger) */
+	bool maskDeliveredThisDay = false;
+
+	/*========================================================================
+	 * ENFORCER SYSTEM
+	 *========================================================================*/
+
+	/* Fixed patrol positions on streets
+	 * Player spawns at (-9728, 0), so horizontal corridor is at Z≈0
+	 * Vertical street at X≈7168, going up from the corridor */
+	static const int32_t enforcerPatrolX[MAX_ENFORCERS] = {
+		0,      /* Enforcer 0: center of horizontal corridor */
+		4096,   /* Enforcer 1: right of center on corridor */
+		-4096,  /* Enforcer 2: left of center on corridor */
+		7168,   /* Enforcer 3: vertical street */
+		7168    /* Enforcer 4: upper vertical street */
+	};
+	static const int32_t enforcerPatrolZ[MAX_ENFORCERS] = {
+		0,      /* Enforcer 0: on corridor (same Z as player spawn) */
+		0,      /* Enforcer 1: on corridor */
+		0,      /* Enforcer 2: on corridor */
+		5120,   /* Enforcer 3: mid vertical street */
+		9216    /* Enforcer 4: upper vertical street */
+	};
+
+	/* Initialize enforcers at fixed street positions
+	 * Day N has N enforcers (Day 1 = 1, Day 2 = 2, etc.) */
+	Enforcer enforcers[MAX_ENFORCERS];
+	for (int i = 0; i < MAX_ENFORCERS; i++) {
+		enforcers[i].isActive = (i < currentDay);  /* Day N has N enforcers */
+		enforcers[i].state = ENFORCER_PATROL;
+		enforcers[i].detectionMeter = 0;
+		enforcers[i].cooldownTimer = 0;
+
+		/* Use fixed patrol positions on streets */
+		enforcers[i].patrolCenterX = enforcerPatrolX[i];
+		enforcers[i].patrolCenterZ = enforcerPatrolZ[i];
+		enforcers[i].x = enforcers[i].patrolCenterX << 12;
+		enforcers[i].z = enforcers[i].patrolCenterZ << 12;
+		enforcers[i].y = ENFORCER_SPAWN_Y << 12;
+		enforcers[i].facing = (i * 1024) & 0xFFF;  /* Stagger initial facing */
+		enforcers[i].patrolWaypoint = 0;
+		enforcers[i].waypointTimer = WAYPOINT_PAUSE_TIME;
+		enforcers[i].walkCycle = 0;
+	}
+
+#if DEBUG_ENFORCER_NEARBY
+	/* Debug: Spawn enforcer 0 near the restaurant for testing */
+	enforcers[0].isActive = true;
+	enforcers[0].patrolCenterX = PLAYER_SPAWN_X + 800;  /* Just east of restaurant */
+	enforcers[0].patrolCenterZ = PLAYER_SPAWN_Z + 800;  /* Just north of restaurant */
+	enforcers[0].x = enforcers[0].patrolCenterX << 12;
+	enforcers[0].z = enforcers[0].patrolCenterZ << 12;
+	printf("DEBUG: Enforcer spawned near restaurant at (%d, %d)\n",
+		enforcers[0].patrolCenterX, enforcers[0].patrolCenterZ);
+#endif
+	int maxDetectionLevel = 0;  /* Track highest detection for UI */
+	bool playerCaught = false;  /* Set when enforcer catches player */
 
 	/* Dialog state */
 	const char *currentDialog = NULL;
@@ -869,9 +979,9 @@ int main(int argc, const char **argv)
 		/* Only process input when not fading */
 		bool canProcessInput = (gameState == STATE_EXTERIOR || gameState == STATE_INTERIOR);
 
-		/* Check if L1 is held for strafe mode (L2/R2 are now left/right) */
+		/* Check if L2 is held for strafe mode (left/right strafe instead of rotate) */
 		if (canProcessInput) {
-			strafeMode = (pad.buttons & PAD_L1) != 0;
+			strafeMode = (pad.buttons & PAD_L2) != 0;
 
 			/* Force strafe mode when inside a house */
 			if (gameState == STATE_INTERIOR) {
@@ -879,7 +989,7 @@ int main(int argc, const char **argv)
 			}
 
 			if (strafeMode) {
-				/* Strafe mode: move relative to camera */
+				/* Strafe mode: move relative to camera, left/right = strafe */
 				int16_t strafeAngle = orbitAngle;
 				if (gameState == STATE_INTERIOR) {
 					strafeAngle = INTERIOR_CAMERA_ANGLE;
@@ -916,12 +1026,12 @@ int main(int argc, const char **argv)
 					strafeDirX += isin(strafeAngle);
 					strafeDirZ += icos(strafeAngle);
 				}
-				if ((pad.buttons & PAD_LEFT) || (pad.buttons & PAD_L2)) {
+				if (pad.buttons & PAD_LEFT) {
 					int16_t leftAngle = strafeAngle + 1024;
 					strafeDirX += isin(leftAngle);
 					strafeDirZ += icos(leftAngle);
 				}
-				if ((pad.buttons & PAD_RIGHT) || (pad.buttons & PAD_R2)) {
+				if (pad.buttons & PAD_RIGHT) {
 					int16_t rightAngle = strafeAngle - 1024;
 					strafeDirX += isin(rightAngle);
 					strafeDirZ += icos(rightAngle);
@@ -941,10 +1051,11 @@ int main(int argc, const char **argv)
 				}
 			} else {
 				/* Normal mode: camera-relative movement */
-				if ((pad.buttons & PAD_LEFT) || (pad.buttons & PAD_L2)) {
+				/* LEFT, RIGHT, L1, R1 all rotate camera */
+				if ((pad.buttons & PAD_LEFT) || (pad.buttons & PAD_L1)) {
 					orbitAngle -= PLAYER_TURN_SPEED;
 				}
-				if ((pad.buttons & PAD_RIGHT) || (pad.buttons & PAD_R2)) {
+				if ((pad.buttons & PAD_RIGHT) || (pad.buttons & PAD_R1)) {
 					orbitAngle += PLAYER_TURN_SPEED;
 				}
 
@@ -963,32 +1074,6 @@ int main(int argc, const char **argv)
 
 				if (pad.buttons & PAD_DOWN) {
 					int16_t diff = orbitAngle - player.facing;
-					while (diff > 2048) diff -= 4096;
-					while (diff < -2048) diff += 4096;
-
-					if (diff > ROTATION_THRESHOLD) moveX = 1;
-					else if (diff < -ROTATION_THRESHOLD) moveX = -1;
-
-					int16_t absDiff = (diff < 0) ? -diff : diff;
-					if (absDiff < 1024) moveZ = 1;
-				}
-
-				/* L1/R1: strafe */
-				if (pad.buttons & PAD_L1) {
-					int16_t cameraRight = orbitAngle + 2048 - 1024;
-					int16_t diff = cameraRight - player.facing;
-					while (diff > 2048) diff -= 4096;
-					while (diff < -2048) diff += 4096;
-
-					if (diff > ROTATION_THRESHOLD) moveX = 1;
-					else if (diff < -ROTATION_THRESHOLD) moveX = -1;
-
-					int16_t absDiff = (diff < 0) ? -diff : diff;
-					if (absDiff < 1024) moveZ = 1;
-				}
-				if (pad.buttons & PAD_R1) {
-					int16_t cameraLeft = orbitAngle + 2048 + 1024;
-					int16_t diff = cameraLeft - player.facing;
 					while (diff > 2048) diff -= 4096;
 					while (diff < -2048) diff += 4096;
 
@@ -1040,6 +1125,66 @@ int main(int argc, const char **argv)
 					player.z = 0;
 					player.facing = 0;
 					player.isWalking = false;
+
+					/* If caught by enforcer, do the day reset now (screen is black) */
+					if (caughtTransition) {
+						caughtTransition = false;
+
+						/* Advance to next day */
+						currentDay++;
+						maskDeliveredThisDay = false;
+						if (currentDay > MAX_DAYS) {
+							/* Game complete - show ending */
+							introCharCount = 0;
+							introTextComplete = false;
+							gameState = STATE_ENDING;
+							/* Skip the rest of the caught transition */
+							goto skip_caught_reset;
+						}
+
+						/* Reset player arm position to resting */
+						player.partRotX[PART_ARM_LEFT] = 0;
+						player.partRotX[PART_ARM_RIGHT] = 0;
+						player.partRotY[PART_ARM_LEFT] = 0;
+						player.partRotY[PART_ARM_RIGHT] = 0;
+						player.partRotZ[PART_ARM_LEFT] = 0;
+						player.partRotZ[PART_ARM_RIGHT] = 0;
+
+						/* Reset state for new day */
+						hasFood = false;
+						hasMask = false;
+						foodBoxSpawned = false;
+						momInstructionIndex = 0;
+						instructionsDone = false;
+						momCommentaryIndex = 0;
+						talkedToMomAboutMasks = false;
+						masksCollected = 0;
+						correctFoodHouse = currentDay % NUM_HOUSES;
+
+						/* Reset hiding adults for new day - avoid food delivery house! */
+						for (int j = 0; j < NUM_HIDING_ADULTS; j++) {
+							int candidateHouse = (j * 3 + currentDay) % NUM_HOUSES;
+							if (candidateHouse == correctFoodHouse) {
+								candidateHouse = (candidateHouse + 1) % NUM_HOUSES;
+							}
+							hidingAdults[j].houseIndex = candidateHouse;
+							hidingAdults[j].hasMask = false;
+							hidingAdultChars[j].x = HOUSE_ADULT_POS_X << 12;
+							hidingAdultChars[j].y = HOUSE_ADULT_POS_Y << 12;
+							hidingAdultChars[j].z = HOUSE_ADULT_POS_Z << 12;
+						}
+
+						/* Reset enforcers to patrol centers (now safe, screen is black) */
+						for (int j = 0; j < MAX_ENFORCERS; j++) {
+							enforcers[j].isActive = (j < currentDay);
+							enforcers[j].state = ENFORCER_PATROL;
+							enforcers[j].detectionMeter = 0;
+							enforcers[j].x = enforcers[j].patrolCenterX << 12;
+							enforcers[j].z = enforcers[j].patrolCenterZ << 12;
+							enforcers[j].patrolWaypoint = 0;
+							enforcers[j].waypointTimer = WAYPOINT_PAUSE_TIME;
+						}
+					}
 				} else {
 					player.x = entryPosX;
 					player.z = entryPosZ;
@@ -1050,6 +1195,7 @@ int main(int argc, const char **argv)
 				}
 				gameState = STATE_BLACK;
 				fadeHoldCounter = FADE_HOLD_FRAMES * 256;  /* Convert to delta units */
+skip_caught_reset:;
 			}
 		} else if (gameState == STATE_BLACK) {
 			fadeAlpha = 255;
@@ -1062,7 +1208,12 @@ int main(int argc, const char **argv)
 			if (fadeAlpha <= 0) {
 				fadeAlpha = 0;
 				if (transitionToInterior) {
-					gameState = STATE_INTERIOR;
+					/* Check if we need to show day intro */
+					if (dayIntroTimer > 0) {
+						gameState = STATE_DAY_INTRO;
+					} else {
+						gameState = STATE_INTERIOR;
+					}
 				} else {
 					gameState = STATE_EXTERIOR;
 					/* First time leaving restaurant - show credits */
@@ -1076,7 +1227,17 @@ int main(int argc, const char **argv)
 		} else if (gameState == STATE_DAY_INTRO) {
 			dayIntroTimer -= deltaTime;
 			if (dayIntroTimer <= 0) {
-				gameState = STATE_INTERIOR;
+				/* Day 5 special: Mom is gone, show farewell note */
+				if (currentDay >= 5 && !instructionsDone) {
+					instructionsDone = true;  /* Mark as done so player can leave */
+					foodBoxSpawned = true;  /* Food box is on the floor */
+					currentDialog = MOM_FAREWELL_NOTE;
+					dialogCharCount = 0;
+					dialogComplete = false;
+					gameState = STATE_DIALOG;
+				} else {
+					gameState = STATE_INTERIOR;
+				}
 			}
 		} else if (gameState == STATE_DIALOG) {
 			if (currentDialog && !dialogComplete) {
@@ -1226,13 +1387,228 @@ int main(int argc, const char **argv)
 			if (player.z > maxZ) player.z = maxZ;
 		}
 
+		/*====================================================================
+		 * ENFORCER AI UPDATE (only in exterior)
+		 *====================================================================*/
+		maxDetectionLevel = 0;
+		playerCaught = false;
+
+		if (gameState == STATE_EXTERIOR) {
+			int32_t playerWorldX = player.x >> 12;
+			int32_t playerWorldZ = player.z >> 12;
+
+			for (int i = 0; i < MAX_ENFORCERS; i++) {
+				if (!enforcers[i].isActive) continue;
+
+				int32_t enfWorldX = enforcers[i].x >> 12;
+				int32_t enfWorldZ = enforcers[i].z >> 12;
+
+				/* Calculate distance to player */
+				int32_t dx = playerWorldX - enfWorldX;
+				int32_t dz = playerWorldZ - enfWorldZ;
+				int32_t distSq = dx * dx + dz * dz;
+
+				/* Check if player in detection range */
+				bool seesPlayer = false;
+				if (distSq < DETECTION_RANGE * DETECTION_RANGE) {
+					/* Check if player is in front (within cone) */
+					int16_t angleToPlayer = iatan2(dx, dz);
+					int16_t angleDiff = angleToPlayer - enforcers[i].facing;
+					while (angleDiff > 2048) angleDiff -= 4096;
+					while (angleDiff < -2048) angleDiff += 4096;
+					if (angleDiff > -DETECTION_CONE && angleDiff < DETECTION_CONE) {
+						seesPlayer = true;
+					}
+				}
+
+				switch (enforcers[i].state) {
+					case ENFORCER_PATROL:
+						if (seesPlayer) {
+							/* Switch to alert */
+							enforcers[i].state = ENFORCER_ALERT;
+							enforcers[i].detectionMeter += (DETECTION_RATE * deltaTime) >> 8;
+						} else {
+							/* Patrol movement: move toward current waypoint */
+							int32_t waypointOffsetX = (enforcers[i].patrolWaypoint == 1 || enforcers[i].patrolWaypoint == 2) ? PATROL_HALF_SIZE : -PATROL_HALF_SIZE;
+							int32_t waypointOffsetZ = (enforcers[i].patrolWaypoint == 0 || enforcers[i].patrolWaypoint == 1) ? PATROL_HALF_SIZE : -PATROL_HALF_SIZE;
+							int32_t targetX = enforcers[i].patrolCenterX + waypointOffsetX;
+							int32_t targetZ = enforcers[i].patrolCenterZ + waypointOffsetZ;
+
+							int32_t wpDx = targetX - enfWorldX;
+							int32_t wpDz = targetZ - enfWorldZ;
+							int32_t wpDistSq = wpDx * wpDx + wpDz * wpDz;
+
+							if (wpDistSq < 100 * 100) {
+								/* At waypoint - pause then advance */
+								enforcers[i].waypointTimer -= deltaTime;
+								if (enforcers[i].waypointTimer <= 0) {
+									enforcers[i].patrolWaypoint = (enforcers[i].patrolWaypoint + 1) % 4;
+									enforcers[i].waypointTimer = WAYPOINT_PAUSE_TIME;
+								}
+							} else {
+								/* Move toward waypoint */
+								int16_t targetFacing = iatan2(wpDx, wpDz);
+								int16_t turnDiff = targetFacing - enforcers[i].facing;
+								while (turnDiff > 2048) turnDiff -= 4096;
+								while (turnDiff < -2048) turnDiff += 4096;
+
+								if (turnDiff > PLAYER_TURN_SPEED) enforcers[i].facing += PLAYER_TURN_SPEED;
+								else if (turnDiff < -PLAYER_TURN_SPEED) enforcers[i].facing -= PLAYER_TURN_SPEED;
+								else enforcers[i].facing = targetFacing;
+
+								/* Move forward with collision checking */
+								int32_t sinF = isin(enforcers[i].facing);
+								int32_t cosF = icos(enforcers[i].facing);
+								int32_t moveX = (sinF * ENFORCER_PATROL_SPEED) >> 12;
+								int32_t moveZ = (cosF * ENFORCER_PATROL_SPEED) >> 12;
+								int32_t newEnfX = enforcers[i].x + ((moveX * deltaTime) >> 8);
+								int32_t newEnfZ = enforcers[i].z + ((moveZ * deltaTime) >> 8);
+								int32_t newEnfWorldX = newEnfX >> 12;
+								int32_t newEnfWorldZ = newEnfZ >> 12;
+
+								/* Check collision at new position */
+								bool enfCollision =
+									checkAllHouseCollisions(newEnfWorldX, newEnfWorldZ, ENFORCER_COLLISION_RADIUS, houses, NUM_HOUSES) ||
+									checkHouseCollision(newEnfWorldX, newEnfWorldZ, ENFORCER_COLLISION_RADIUS, &restaurant) ||
+									checkAllTreeCollisions(newEnfWorldX, newEnfWorldZ, ENFORCER_COLLISION_RADIUS, trees, NUM_MAP_TREES) ||
+									checkAllFenceCollisions(newEnfWorldX, newEnfWorldZ, ENFORCER_COLLISION_RADIUS);
+
+								if (!enfCollision) {
+									enforcers[i].x = newEnfX;
+									enforcers[i].z = newEnfZ;
+								} else {
+									/* Hit obstacle - reverse direction (go to opposite waypoint) */
+									enforcers[i].patrolWaypoint = (enforcers[i].patrolWaypoint + 2) % 4;
+									enforcers[i].facing = (enforcers[i].facing + 2048) & 0xFFF;  /* Turn 180 degrees */
+									enforcers[i].waypointTimer = WAYPOINT_PAUSE_TIME / 2;  /* Quick pause */
+								}
+
+								/* Animate walk */
+								enforcers[i].walkCycle += (WALK_CYCLE_SPEED * deltaTime) >> 8;
+								if (enforcers[i].walkCycle >= 4096) enforcers[i].walkCycle -= 4096;
+							}
+						}
+						break;
+
+					case ENFORCER_ALERT:
+						if (seesPlayer) {
+							/* Turn to face player */
+							enforcers[i].facing = iatan2(dx, dz);
+							/* Fill detection meter */
+							enforcers[i].detectionMeter += (DETECTION_RATE * deltaTime) >> 8;
+							if (enforcers[i].detectionMeter >= DETECTION_MAX) {
+								enforcers[i].state = ENFORCER_CHASE;
+								enforcers[i].cooldownTimer = CHASE_TIMEOUT;
+							}
+						} else {
+							/* Decay detection meter */
+							enforcers[i].detectionMeter -= (DETECTION_DECAY * deltaTime) >> 8;
+							if (enforcers[i].detectionMeter <= 0) {
+								enforcers[i].detectionMeter = 0;
+								enforcers[i].state = ENFORCER_PATROL;
+							}
+						}
+						break;
+
+					case ENFORCER_CHASE:
+						{
+							/* Turn toward player */
+							enforcers[i].facing = iatan2(dx, dz);
+
+							/* Move toward player at chase speed with collision */
+							int32_t sinF = isin(enforcers[i].facing);
+							int32_t cosF = icos(enforcers[i].facing);
+							int32_t moveX = (sinF * ENFORCER_CHASE_SPEED) >> 12;
+							int32_t moveZ = (cosF * ENFORCER_CHASE_SPEED) >> 12;
+							int32_t oldEnfX = enforcers[i].x;
+							int32_t oldEnfZ = enforcers[i].z;
+							int32_t newEnfX = oldEnfX + ((moveX * deltaTime) >> 8);
+							int32_t newEnfZ = oldEnfZ + ((moveZ * deltaTime) >> 8);
+							int32_t newEnfWorldX = newEnfX >> 12;
+							int32_t newEnfWorldZ = newEnfZ >> 12;
+							int32_t oldEnfWorldX = oldEnfX >> 12;
+							int32_t oldEnfWorldZ = oldEnfZ >> 12;
+
+							/* Check collision with sliding */
+							bool enfCollision =
+								checkAllHouseCollisions(newEnfWorldX, newEnfWorldZ, ENFORCER_COLLISION_RADIUS, houses, NUM_HOUSES) ||
+								checkHouseCollision(newEnfWorldX, newEnfWorldZ, ENFORCER_COLLISION_RADIUS, &restaurant) ||
+								checkAllTreeCollisions(newEnfWorldX, newEnfWorldZ, ENFORCER_COLLISION_RADIUS, trees, NUM_MAP_TREES) ||
+								checkAllFenceCollisions(newEnfWorldX, newEnfWorldZ, ENFORCER_COLLISION_RADIUS);
+
+							if (!enfCollision) {
+								enforcers[i].x = newEnfX;
+								enforcers[i].z = newEnfZ;
+							} else {
+								/* Try sliding along X axis only */
+								bool canMoveX = !(
+									checkAllHouseCollisions(newEnfWorldX, oldEnfWorldZ, ENFORCER_COLLISION_RADIUS, houses, NUM_HOUSES) ||
+									checkHouseCollision(newEnfWorldX, oldEnfWorldZ, ENFORCER_COLLISION_RADIUS, &restaurant) ||
+									checkAllTreeCollisions(newEnfWorldX, oldEnfWorldZ, ENFORCER_COLLISION_RADIUS, trees, NUM_MAP_TREES) ||
+									checkAllFenceCollisions(newEnfWorldX, oldEnfWorldZ, ENFORCER_COLLISION_RADIUS));
+								/* Try sliding along Z axis only */
+								bool canMoveZ = !(
+									checkAllHouseCollisions(oldEnfWorldX, newEnfWorldZ, ENFORCER_COLLISION_RADIUS, houses, NUM_HOUSES) ||
+									checkHouseCollision(oldEnfWorldX, newEnfWorldZ, ENFORCER_COLLISION_RADIUS, &restaurant) ||
+									checkAllTreeCollisions(oldEnfWorldX, newEnfWorldZ, ENFORCER_COLLISION_RADIUS, trees, NUM_MAP_TREES) ||
+									checkAllFenceCollisions(oldEnfWorldX, newEnfWorldZ, ENFORCER_COLLISION_RADIUS));
+
+								if (canMoveX && !canMoveZ) {
+									enforcers[i].x = newEnfX;  /* Slide along X */
+								} else if (canMoveZ && !canMoveX) {
+									enforcers[i].z = newEnfZ;  /* Slide along Z */
+								}
+								/* If both blocked, don't move */
+							}
+
+							/* Faster walk animation */
+							enforcers[i].walkCycle += (WALK_CYCLE_SPEED * 2 * deltaTime) >> 8;
+							if (enforcers[i].walkCycle >= 4096) enforcers[i].walkCycle -= 4096;
+
+							/* Check if caught player */
+							if (distSq < CATCH_RADIUS * CATCH_RADIUS) {
+								playerCaught = true;
+							}
+
+							/* Timeout if lost sight for too long */
+							if (!seesPlayer) {
+								enforcers[i].cooldownTimer -= deltaTime;
+								if (enforcers[i].cooldownTimer <= 0) {
+									enforcers[i].state = ENFORCER_PATROL;
+									enforcers[i].detectionMeter = 0;
+								}
+							} else {
+								enforcers[i].cooldownTimer = CHASE_TIMEOUT;
+							}
+						}
+						break;
+				}
+
+				/* Track max detection for UI */
+				if (enforcers[i].detectionMeter > maxDetectionLevel) {
+					maxDetectionLevel = enforcers[i].detectionMeter;
+				}
+			}
+
+			/* Handle player caught - start fade, defer reset until screen is black */
+			if (playerCaught) {
+				/* Start transition - actual reset happens in STATE_BLACK */
+				caughtTransition = true;
+				transitionToInterior = true;
+				currentHouseIndex = NUM_HOUSES;
+				dayIntroTimer = DAY_INTRO_DURATION;
+				gameState = STATE_FADE_OUT;
+				fadeAlpha = 0;
+			}
+		}
+
 		/* Update mom in restaurant interior */
 		bool nearMom = false;
 		if (gameState == STATE_INTERIOR && currentHouseIndex == NUM_HOUSES) {
 			int32_t momDistX = (player.x >> 12) - MOM_POS_X;
 			int32_t momDistZ = (player.z >> 12) - MOM_POS_Z;
 			int32_t momDistSq = momDistX * momDistX + momDistZ * momDistZ;
-			nearMom = (momDistSq < INTERACT_RADIUS * INTERACT_RADIUS) && !talkedToMom;
+			nearMom = (momDistSq < INTERACT_RADIUS * INTERACT_RADIUS);
 
 			if (nearMom) {
 				int16_t angleToPlayer = (int16_t)iatan2(momDistX, momDistZ);
@@ -1355,10 +1731,8 @@ int main(int argc, const char **argv)
 			int32_t momDistZ = (player.z >> 12) - MOM_POS_Z;
 			int32_t momDistSq = momDistX * momDistX + momDistZ * momDistZ;
 			bool inRange = (momDistSq < INTERACT_RADIUS * INTERACT_RADIUS);
-			/* Can talk if: first time, or mask dialog, or getting more food */
-			bool canTalk = !talkedToMom ||
-			               (talkedToMom && !talkedToMomAboutMasks && masksCollected > 0) ||
-			               (talkedToMom && !hasFood && !hasMask && !foodBoxSpawned && masksCollected < NUM_HIDING_ADULTS);
+			/* Player can ALWAYS talk to mom on days 1-4 when in range */
+			bool canTalk = (currentDay < 5);
 			nearMomForPrompt = inRange && canTalk;
 		} else if (gameState == STATE_INTERIOR && currentHouseIndex >= 0 && currentHouseIndex < NUM_HOUSES) {
 			/* In regular house - check if near citizen (for food delivery) or hiding adult (for mask) */
@@ -1468,6 +1842,7 @@ int main(int argc, const char **argv)
 					entryFacing = 2048;
 				}
 			} else if (gameState == STATE_DAY_INTRO) {
+				dayIntroTimer = 0;  /* Reset timer when skipping day intro */
 				gameState = STATE_INTERIOR;
 			} else if (gameState == STATE_DIALOG) {
 				if (!dialogComplete) {
@@ -1476,7 +1851,7 @@ int main(int argc, const char **argv)
 				} else {
 					gameState = STATE_INTERIOR;
 					currentDialog = NULL;
-					if (talkedToMom && !foodBoxSpawned) {
+					if (instructionsDone && !foodBoxSpawned) {
 						foodBoxSpawned = true;
 						targetHouseIndex = correctFoodHouse;
 					}
@@ -1487,8 +1862,19 @@ int main(int argc, const char **argv)
 				entryFacing = player.facing;
 				currentHouseIndex = triggeredDoor;
 				transitionToInterior = true;
+				dayIntroTimer = 0;  /* Don't show day intro when entering a house */
 				gameState = STATE_FADE_OUT;
 				fadeAlpha = 0;
+
+				/* Reset all enforcers when entering a house (escape mechanic) */
+				for (int i = 0; i < MAX_ENFORCERS; i++) {
+					enforcers[i].state = ENFORCER_PATROL;
+					enforcers[i].detectionMeter = 0;
+					enforcers[i].x = enforcers[i].patrolCenterX << 12;
+					enforcers[i].z = enforcers[i].patrolCenterZ << 12;
+					enforcers[i].patrolWaypoint = 0;
+					enforcers[i].waypointTimer = WAYPOINT_PAUSE_TIME;
+				}
 			} else if (gameState == STATE_INTERIOR && currentHouseIndex == NUM_HOUSES) {
 				bool handledInteraction = false;
 
@@ -1498,15 +1884,38 @@ int main(int argc, const char **argv)
 				int32_t momDistSq = momDistX * momDistX + momDistZ * momDistZ;
 				bool nearMomForTalk = momDistSq < INTERACT_RADIUS * INTERACT_RADIUS;
 
-				if (!talkedToMom && nearMomForTalk) {
-					/* First time talking to mom */
-					talkedToMom = true;
-					currentDialog = MOM_DIALOG;
+				if (!instructionsDone && nearMomForTalk && currentDay < 5) {
+					/* Show instruction lines until all done, then food spawns */
+					int instructionCount = 1;
+					switch (currentDay) {
+						case 1: instructionCount = MOM_DIALOG_DAY1_COUNT; break;
+						case 2: instructionCount = MOM_DIALOG_DAY2_COUNT; break;
+						case 3: instructionCount = MOM_DIALOG_DAY3_COUNT; break;
+						case 4: instructionCount = MOM_DIALOG_DAY4_COUNT; break;
+					}
+
+					/* Select the right instruction line for this day */
+					if (currentDay == 1) {
+						if (momInstructionIndex == 0) currentDialog = MOM_DIALOG_DAY1_0;
+						else currentDialog = MOM_DIALOG_DAY1_1;
+					} else if (currentDay == 2) {
+						currentDialog = MOM_DIALOG_DAY2_0;
+					} else if (currentDay == 3) {
+						currentDialog = MOM_DIALOG_DAY3_0;
+					} else {
+						currentDialog = MOM_DIALOG_DAY4_0;
+					}
+
+					momInstructionIndex++;
+					if (momInstructionIndex >= instructionCount) {
+						instructionsDone = true;
+					}
+
 					dialogCharCount = 0;
 					dialogComplete = false;
 					gameState = STATE_DIALOG;
 					handledInteraction = true;
-				} else if (talkedToMom && !talkedToMomAboutMasks && masksCollected > 0 && nearMomForTalk) {
+				} else if (instructionsDone && !talkedToMomAboutMasks && masksCollected > 0 && nearMomForTalk) {
 					/* After getting first mask, mom tells about distributing them */
 					talkedToMomAboutMasks = true;
 					currentDialog = MOM_MASK_DIALOG;
@@ -1514,7 +1923,7 @@ int main(int argc, const char **argv)
 					dialogComplete = false;
 					gameState = STATE_DIALOG;
 					handledInteraction = true;
-				} else if (talkedToMom && !hasFood && !hasMask && !foodBoxSpawned &&
+				} else if (instructionsDone && !hasFood && !hasMask && !foodBoxSpawned &&
 				           masksCollected < NUM_HIDING_ADULTS && nearMomForTalk) {
 					/* Player delivered a mask and needs more food */
 					currentDialog = MOM_MORE_FOOD_DIALOG;
@@ -1522,6 +1931,40 @@ int main(int argc, const char **argv)
 					dialogComplete = false;
 					gameState = STATE_DIALOG;
 					foodBoxSpawned = true;
+					handledInteraction = true;
+				} else if (nearMomForTalk && currentDay < 5 && foodBoxSpawned) {
+					/* Optional cycling commentary after food spawns */
+					int commentCount = 1;
+					switch (currentDay) {
+						case 1: commentCount = MOM_COMMENT_DAY1_COUNT; break;
+						case 2: commentCount = MOM_COMMENT_DAY2_COUNT; break;
+						case 3: commentCount = MOM_COMMENT_DAY3_COUNT; break;
+						case 4: commentCount = MOM_COMMENT_DAY4_COUNT; break;
+					}
+
+					/* Cycle through commentary lines */
+					int idx = momCommentaryIndex % commentCount;
+					if (currentDay == 1) {
+						if (idx == 0) currentDialog = MOM_COMMENT_DAY1_0;
+						else if (idx == 1) currentDialog = MOM_COMMENT_DAY1_1;
+						else currentDialog = MOM_COMMENT_DAY1_2;
+					} else if (currentDay == 2) {
+						if (idx == 0) currentDialog = MOM_COMMENT_DAY2_0;
+						else if (idx == 1) currentDialog = MOM_COMMENT_DAY2_1;
+						else currentDialog = MOM_COMMENT_DAY2_2;
+					} else if (currentDay == 3) {
+						if (idx == 0) currentDialog = MOM_COMMENT_DAY3_0;
+						else currentDialog = MOM_COMMENT_DAY3_1;
+					} else {
+						if (idx == 0) currentDialog = MOM_COMMENT_DAY4_0;
+						else if (idx == 1) currentDialog = MOM_COMMENT_DAY4_1;
+						else currentDialog = MOM_COMMENT_DAY4_2;
+					}
+
+					momCommentaryIndex++;
+					dialogCharCount = 0;
+					dialogComplete = false;
+					gameState = STATE_DIALOG;
 					handledInteraction = true;
 				}
 
@@ -1564,7 +2007,7 @@ int main(int argc, const char **argv)
 #endif
 
 				if (!handledInteraction && atInteriorExit) {
-					if (!talkedToMom) {
+					if (!instructionsDone) {
 						currentDialog = NEED_TO_TALK_MSG;
 						dialogCharCount = 0;
 						dialogComplete = false;
@@ -1586,9 +2029,72 @@ int main(int argc, const char **argv)
 
 				/* Handle exit FIRST - prioritize leaving when at door */
 				if (atInteriorExit) {
-					transitionToInterior = false;
-					gameState = STATE_FADE_OUT;
-					fadeAlpha = 0;
+					/* Check if day should end (mask delivered this day) */
+					if (maskDeliveredThisDay) {
+						/* Day ends - advance to next day */
+						currentDay++;
+						maskDeliveredThisDay = false;
+
+						if (currentDay > MAX_DAYS) {
+							/* Game complete - show ending! */
+							introCharCount = 0;
+							introTextComplete = false;
+							gameState = STATE_ENDING;
+							handledInteraction = true;
+						} else {
+							/* Reset state for new day */
+							hasFood = false;
+							hasMask = false;
+							foodBoxSpawned = false;
+							momInstructionIndex = 0;
+							instructionsDone = false;
+							momCommentaryIndex = 0;
+							talkedToMomAboutMasks = false;
+							masksCollected = 0;
+							correctFoodHouse = currentDay % NUM_HOUSES;
+
+							/* Reset hiding adults for new day - avoid food delivery house! */
+							for (int i = 0; i < NUM_HIDING_ADULTS; i++) {
+								int candidateHouse = (i * 3 + currentDay) % NUM_HOUSES;
+								if (candidateHouse == correctFoodHouse) {
+									candidateHouse = (candidateHouse + 1) % NUM_HOUSES;
+								}
+								hidingAdults[i].houseIndex = candidateHouse;
+								hidingAdults[i].hasMask = false;
+								hidingAdultChars[i].x = HOUSE_ADULT_POS_X << 12;
+								hidingAdultChars[i].y = HOUSE_ADULT_POS_Y << 12;
+								hidingAdultChars[i].z = HOUSE_ADULT_POS_Z << 12;
+							}
+
+							/* Activate enforcers for new day (Day N = N enforcers) */
+							for (int i = 0; i < MAX_ENFORCERS; i++) {
+								enforcers[i].isActive = (i < currentDay);
+								enforcers[i].state = ENFORCER_PATROL;
+								enforcers[i].detectionMeter = 0;
+								enforcers[i].x = enforcers[i].patrolCenterX << 12;
+								enforcers[i].z = enforcers[i].patrolCenterZ << 12;
+								enforcers[i].patrolWaypoint = 0;
+								enforcers[i].waypointTimer = WAYPOINT_PAUSE_TIME;
+							}
+
+							/* Reset entry position to restaurant exterior */
+							entryPosX = (PLAYER_SPAWN_X + PLAYER_SPAWN_OFFSET_X) << 12;
+							entryPosZ = (PLAYER_SPAWN_Z + PLAYER_SPAWN_OFFSET_Z) << 12;
+							entryFacing = 2048;
+
+							/* Transition to restaurant and show day intro */
+							transitionToInterior = true;
+							currentHouseIndex = NUM_HOUSES;  /* Go to restaurant */
+							dayIntroTimer = DAY_INTRO_DURATION;
+							gameState = STATE_FADE_OUT;
+							fadeAlpha = 0;
+						}
+					} else {
+						/* Normal exit - just leave the house */
+						transitionToInterior = false;
+						gameState = STATE_FADE_OUT;
+						fadeAlpha = 0;
+					}
 					handledInteraction = true;
 				}
 
@@ -1631,6 +2137,7 @@ int main(int argc, const char **argv)
 							hasMask = false;
 							player.isCarrying = false;
 							foodBoxSpawned = false; /* Allow getting more food from mom */
+							maskDeliveredThisDay = true;  /* Mark day as complete */
 							handledInteraction = true;
 							break;
 						}
@@ -1681,6 +2188,7 @@ int main(int argc, const char **argv)
 					entryFacing = 2048;
 				}
 			} else if (gameState == STATE_DAY_INTRO) {
+				dayIntroTimer = 0;  /* Reset timer when skipping day intro */
 				gameState = STATE_INTERIOR;
 			} else if (gameState == STATE_PAUSED) {
 				gameState = prePauseState;
@@ -1690,12 +2198,79 @@ int main(int argc, const char **argv)
 			}
 		}
 
+		/* DEBUG: Select button skips to next day */
+#if DEBUG_SKIP_DAY
+		if ((pad.buttons & PAD_SELECT) && !(prevButtons & PAD_SELECT)) {
+			if (gameState == STATE_EXTERIOR || gameState == STATE_INTERIOR) {
+				/* Advance to next day */
+				currentDay++;
+				if (currentDay > MAX_DAYS) {
+					/* Game complete - show ending */
+					introCharCount = 0;
+					introTextComplete = false;
+					gameState = STATE_ENDING;
+				} else {
+					/* Reset state for new day */
+					hasFood = false;
+					hasMask = false;
+					momInstructionIndex = 0;
+					momCommentaryIndex = 0;
+					talkedToMomAboutMasks = false;
+					masksCollected = 0;
+					maskDeliveredThisDay = false;
+					correctFoodHouse = currentDay % NUM_HOUSES;
+					player.isCarrying = false;
+
+					/* Day 5: Mom is gone, food auto-spawns on floor */
+					if (currentDay >= 5) {
+						foodBoxSpawned = true;
+						instructionsDone = true;
+					} else {
+						foodBoxSpawned = false;
+						instructionsDone = false;
+					}
+
+					/* Reset hiding adults for new day */
+					for (int i = 0; i < NUM_HIDING_ADULTS; i++) {
+						int candidateHouse = (i * 3 + currentDay) % NUM_HOUSES;
+						if (candidateHouse == correctFoodHouse) {
+							candidateHouse = (candidateHouse + 1) % NUM_HOUSES;
+						}
+						hidingAdults[i].houseIndex = candidateHouse;
+						hidingAdults[i].hasMask = false;
+					}
+
+					/* Reset enforcers */
+					for (int i = 0; i < MAX_ENFORCERS; i++) {
+						enforcers[i].isActive = (i < currentDay);
+						enforcers[i].state = ENFORCER_PATROL;
+						enforcers[i].detectionMeter = 0;
+						enforcers[i].x = enforcers[i].patrolCenterX << 12;
+						enforcers[i].z = enforcers[i].patrolCenterZ << 12;
+						enforcers[i].patrolWaypoint = 0;
+						enforcers[i].waypointTimer = WAYPOINT_PAUSE_TIME;
+					}
+
+					/* Go to restaurant with day intro */
+					player.x = 0;
+					player.y = PLAYER_Y_OFFSET << 12;
+					player.z = 0;
+					player.facing = 0;
+					currentHouseIndex = NUM_HOUSES;
+					dayIntroTimer = DAY_INTRO_DURATION;
+					gameState = STATE_DAY_INTRO;
+				}
+			}
+		}
+#endif
+
 		prevButtons = pad.buttons;
 		frameCounter++;
 
 		/* Check if we're in menu/intro state */
 		bool inMenuState = (gameState == STATE_TITLE || gameState == STATE_INTRO_1 ||
-			gameState == STATE_INTRO_2 || gameState == STATE_DAY_INTRO);
+			gameState == STATE_INTRO_2 || gameState == STATE_DAY_INTRO ||
+			gameState == STATE_ENDING || gameState == STATE_ENDING_2);
 
 		if (inMenuState) {
 			/* Title / Intro rendering */
@@ -1712,21 +2287,31 @@ int main(int argc, const char **argv)
 			ptr[3] = gp0_xy(0, SCREEN_HEIGHT);
 
 			if (gameState == STATE_TITLE) {
-				const char *title = "REVENANTS OF ELMORIA";
+				/* Draw title screen image (256x256 centered on 320x240 screen) */
+				int imgX = (SCREEN_WIDTH - TITLE_TEX_WIDTH) / 2;  /* 32 */
+				int imgY = 0;  /* Top of screen, bottom will be clipped */
+
+				/* Draw title image: texpage + rectangle in same packet for guaranteed adjacency */
+				/* Using OT index 2 so it's behind text at 0/1 */
+				ptr = allocatePacket(chain, 2, 5);
+				ptr[0] = gp0_texpage(titleTex.page, false, false);
+				ptr[1] = gp0_rectangle(true, false, false) | gp0_rgb(128, 128, 128);
+				ptr[2] = gp0_xy(imgX, imgY);
+				ptr[3] = gp0_uv(titleTex.u, titleTex.v, 0);
+				ptr[4] = gp0_xy(TITLE_TEX_WIDTH, TITLE_TEX_HEIGHT);
+
+				/* Draw "Press START" prompt below the image (always visible, blinking) */
 				const char *prompt = "Press [START] to play";
-
-				int titleX = (SCREEN_WIDTH - 20 * 5) / 2;
-				int titleY = 80;
-
-				printStringColorZ(chain, &font, titleX + 1, titleY + 1, title, 40, 20, 20, 1);
-				printStringColorZ(chain, &font, titleX, titleY, title, 200, 180, 100, 0);
-
 				int promptX = (SCREEN_WIDTH - 21 * 5) / 2;
-				int promptY = 160;
+				int promptY = 220;
 
+				/* Draw text every frame but make it blink by changing color */
 				if ((frameCounter / 30) % 2 == 0) {
 					printStringColorZ(chain, &font, promptX + 1, promptY + 1, prompt, 20, 20, 40, 1);
 					printStringColorZ(chain, &font, promptX, promptY, prompt, 100, 150, 255, 0);
+				} else {
+					printStringColorZ(chain, &font, promptX + 1, promptY + 1, prompt, 15, 15, 30, 1);
+					printStringColorZ(chain, &font, promptX, promptY, prompt, 70, 100, 180, 0);
 				}
 			} else if (gameState == STATE_INTRO_1 || gameState == STATE_INTRO_2) {
 				const char *text = (gameState == STATE_INTRO_1) ? INTRO_QUOTE : INTRO_STORY;
@@ -1767,12 +2352,24 @@ int main(int argc, const char **argv)
 				dayText[4] = '0' + currentDay;
 				dayText[5] = '\0';
 
-				char threatText[32];
-				threatText[0] = 'T'; threatText[1] = 'h'; threatText[2] = 'r'; threatText[3] = 'e';
-				threatText[4] = 'a'; threatText[5] = 't'; threatText[6] = ' '; threatText[7] = 'l';
-				threatText[8] = 'e'; threatText[9] = 'v'; threatText[10] = 'e'; threatText[11] = 'l';
-				threatText[12] = ' '; threatText[13] = 'L'; threatText[14] = 'o'; threatText[15] = 'w';
-				threatText[16] = '\0';
+				/* Build threat text with dynamic threat level based on day */
+				int threatIdx = currentDay - 1;
+				if (threatIdx < 0) threatIdx = 0;
+				if (threatIdx > 4) threatIdx = 4;
+				const char *threatLevel = THREAT_LEVELS[threatIdx];
+
+				char threatText[48];
+				sprintf(threatText, "Threat level: %s", threatLevel);
+
+				/* Color based on threat level */
+				uint8_t threatR, threatG, threatB;
+				switch (threatIdx) {
+					case 0: threatR = 100; threatG = 200; threatB = 100; break;  /* Low: Green */
+					case 1: threatR = 200; threatG = 200; threatB = 100; break;  /* Moderate: Yellow */
+					case 2: threatR = 255; threatG = 180; threatB = 80; break;   /* High: Orange */
+					case 3: threatR = 255; threatG = 100; threatB = 80; break;   /* Severe: Red-Orange */
+					default: threatR = 255; threatG = 50; threatB = 50; break;   /* Critical: Red */
+				}
 
 				int dayX = (SCREEN_WIDTH - 5 * 8) / 2;
 				int dayY = 90;
@@ -1780,10 +2377,48 @@ int main(int argc, const char **argv)
 				printStringColorZ(chain, &font, dayX + 1, dayY + 1, dayText, 40, 20, 20, 1);
 				printStringColorZ(chain, &font, dayX, dayY, dayText, 255, 220, 100, 0);
 
-				int threatX = (SCREEN_WIDTH - 16 * 5) / 2;
+				/* Calculate text width for centering */
+				int threatLen = 14;  /* "Threat level: " */
+				const char *p = threatLevel;
+				while (*p) { threatLen++; p++; }
+				int threatX = (SCREEN_WIDTH - threatLen * 5) / 2;
 				int threatY = 120;
-				printStringColorZ(chain, &font, threatX + 1, threatY + 1, threatText, 20, 40, 20, 1);
-				printStringColorZ(chain, &font, threatX, threatY, threatText, 100, 200, 100, 0);
+				printStringColorZ(chain, &font, threatX + 1, threatY + 1, threatText, 20, 20, 20, 1);
+				printStringColorZ(chain, &font, threatX, threatY, threatText, threatR, threatG, threatB, 0);
+			} else if (gameState == STATE_ENDING) {
+				/* Game ending sequence */
+				const char *text = ENDING_TEXT;
+				int textLen = 0;
+				for (const char *p = text; *p; p++) textLen++;
+
+				if (!introTextComplete && (frameCounter % 2 == 0)) {
+					introCharCount += INTRO_TEXT_SPEED;
+					if (introCharCount >= textLen) {
+						introCharCount = textLen;
+						introTextComplete = true;
+					}
+				}
+
+				char displayText[512];
+				int i;
+				for (i = 0; i < introCharCount && i < 511 && text[i]; i++) {
+					displayText[i] = text[i];
+				}
+				displayText[i] = '\0';
+
+				int textX = 20;
+				int textY = 20;
+
+				printStringColorZ(chain, &font, textX + 1, textY + 1, displayText, 30, 30, 40, 1);
+				printStringColorZ(chain, &font, textX, textY, displayText, 180, 200, 180, 0);
+
+				if (introTextComplete && (frameCounter / 30) % 2 == 0) {
+					const char *thanksPrompt = "Thank you for playing";
+					int promptX = (SCREEN_WIDTH - 21 * 5) / 2;
+					int promptY = 220;
+					printStringColorZ(chain, &font, promptX + 1, promptY + 1, thanksPrompt, 20, 30, 20, 1);
+					printStringColorZ(chain, &font, promptX, promptY, thanksPrompt, 100, 200, 150, 0);
+				}
 			}
 		} else {
 			/* Normal game rendering */
@@ -1898,20 +2533,40 @@ int main(int argc, const char **argv)
 					/* Draw mask in player's hands */
 					drawCharacterItem(chain, &player, &maskModel, &cam,
 						CARRY_BOX_OFFSET_Y, CARRY_BOX_OFFSET_Z,
-						CARRY_BOX_BOB_AMOUNT, MASK_SCALE);
+						CARRY_BOX_BOB_AMOUNT, MASK_CARRY_SCALE);
 				}
 
 				if (currentHouseIndex == NUM_HOUSES) {
-					drawCharacter(chain, &mom, &cam);
+					/* Day 5: Mom is gone, only food box on floor */
+					if (currentDay < 5) {
+						drawCharacter(chain, &mom, &cam);
+					}
 					if (foodBoxSpawned && !hasFood) {
+						/* Day 5: food box on floor (Y=0), otherwise on table */
+						int32_t boxY = (currentDay >= 5) ? 0 : FOOD_BOX_TABLE_Y;
 						drawWorldItem(chain, &foodBoxModel, &cam,
-							FOOD_BOX_POS_X, FOOD_BOX_TABLE_Y, FOOD_BOX_POS_Z,
+							FOOD_BOX_POS_X, boxY, FOOD_BOX_POS_Z,
 							0, FOOD_BOX_SCALE);
 					}
 #if DEBUG_CHARACTERS
 					/* Draw restaurant citizens (debug mode only) */
 					for (int i = 0; i < NUM_RESTAURANT_CITIZENS; i++) {
 						drawCharacter(chain, &restaurantCitizens[i], &cam);
+					}
+#endif
+#if DEBUG_ENFORCER_NEARBY
+					/* Draw a static enforcer in restaurant for Y offset/scale testing */
+					{
+						/* Position enforcer near mom for comparison */
+						int32_t debugEnfX = 100 << 12;    /* World X */
+						int32_t debugEnfY = FLOOR_Y << 12; /* Ground level */
+						int32_t debugEnfZ = -50 << 12;    /* World Z */
+						drawEnforcer(chain,
+							&enforcerBodyModel, &enforcerLegLeftModel, &enforcerLegRightModel,
+							debugEnfX, debugEnfY, debugEnfZ,
+							2048,       /* Facing toward player (180 degrees) */
+							0, false,   /* Not walking */
+							&cam);
 					}
 #endif
 				} else if (currentHouseIndex >= 0 && currentHouseIndex < NUM_HOUSES) {
@@ -1963,6 +2618,11 @@ int main(int argc, const char **argv)
 					drawCharacterItem(chain, &player, &foodBoxModel, &cam,
 						CARRY_BOX_OFFSET_Y, CARRY_BOX_OFFSET_Z,
 						CARRY_BOX_BOB_AMOUNT, FOOD_BOX_SCALE);
+				} else if (hasMask) {
+					/* Draw mask in player's hands */
+					drawCharacterItem(chain, &player, &maskModel, &cam,
+						CARRY_BOX_OFFSET_Y, CARRY_BOX_OFFSET_Z,
+						CARRY_BOX_BOB_AMOUNT, MASK_CARRY_SCALE);
 				}
 				for (int i = 0; i < NUM_HOUSES; i++) {
 					drawHouse(chain, &houses[i], &cam);
@@ -1977,6 +2637,22 @@ int main(int argc, const char **argv)
 				setupFenceBatch(&cam);
 				for (int i = 0; i < NUM_FENCE_POSTS; i++) {
 					drawFencePost(chain, &mapFencePosts[i], &cam);
+				}
+
+				/* Draw enforcers (body + animated legs) */
+				for (int i = 0; i < MAX_ENFORCERS; i++) {
+					if (!enforcers[i].isActive) continue;
+
+					bool enforcerWalking = (enforcers[i].state != ENFORCER_ALERT);
+					drawEnforcer(chain,
+						&enforcerBodyModel, &enforcerLegLeftModel, &enforcerLegRightModel,
+						enforcers[i].x,
+						enforcers[i].y,
+						enforcers[i].z,
+						enforcers[i].facing,
+						enforcers[i].walkCycle,
+						enforcerWalking,
+						&cam);
 				}
 
 				#if DEBUG_DRAW_COLLISION
@@ -2005,7 +2681,7 @@ int main(int argc, const char **argv)
 
 				int32_t mapX = (prePauseState == STATE_INTERIOR) ? (entryPosX >> 12) : (player.x >> 12);
 				int32_t mapZ = (prePauseState == STATE_INTERIOR) ? (entryPosZ >> 12) : (player.z >> 12);
-				drawPauseMap(chain, mapX, mapZ, player.facing, frameCounter);
+				drawPauseMap(chain, mapX, mapZ, player.facing, frameCounter, enforcers, MAX_ENFORCERS);
 
 				printStringColor(chain, &font, 130, 8, "PAUSED", 255, 255, 100);
 				printStringColor(chain, &font, 100, 220, "press START to resume", 150, 150, 150);
@@ -2056,6 +2732,11 @@ int main(int argc, const char **argv)
 			printString(chain, &font, 8, 8, debugText);
 			#endif
 
+			/* Draw detection meter when enforcers spot player (exterior only) */
+			if (!renderInterior && maxDetectionLevel > 0) {
+				drawDetectionMeter(chain, maxDetectionLevel, DETECTION_MAX, frameCounter, &font);
+			}
+
 			/* Display delivery target when player has food */
 			if (hasFood && targetHouseIndex >= 0 && targetHouseIndex < NUM_HOUSES) {
 				char deliveryText[32];
@@ -2073,8 +2754,8 @@ int main(int argc, const char **argv)
 				for (int i = 0; i < NUM_HIDING_ADULTS; i++) {
 					if (!hidingAdults[i].hasMask && hidingAdults[i].houseIndex < NUM_HOUSES) {
 						char maskText[32];
-						int houseNum = hidingAdults[i].houseIndex + 1;  /* 1-based house number */
-						sprintf(maskText, "Mask for: House %d", houseNum);
+						uint16_t houseAddr = mapHouses[hidingAdults[i].houseIndex].address;
+						sprintf(maskText, "Mask for: House %d", houseAddr);
 						int maskX = 185;
 						int maskY = 10;
 						printStringColorZ(chain, &font, maskX + 1, maskY + 1, maskText, 20, 40, 20, 1);
@@ -2134,10 +2815,10 @@ int main(int argc, const char **argv)
 
 			/* Draw dialog box */
 			if (gameState == STATE_DIALOG && currentDialog != NULL) {
-				int boxX = 20;
-				int boxY = 20;
-				int boxW = SCREEN_WIDTH - 40;
-				int boxH = 60;
+				int boxX = 10;
+				int boxY = 10;
+				int boxW = SCREEN_WIDTH - 20;
+				int boxH = 100;  /* Taller box for longer text */
 
 				ptr = allocatePacket(chain, 2, 4);
 				ptr[0] = gp0_rgb(20, 15, 40) | gp0_triangle(false, false);

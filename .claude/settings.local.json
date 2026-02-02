@@ -94,7 +94,17 @@
       "Bash(python3:*)",
       "Bash(\"c:/Users/santi/repos/ggj-2026/psbw/tools/psxavenc/psxavenc.exe\" --help)",
       "Bash(\"c:/Users/santi/repos/ggj-2026/tools/psxavenc/psxavenc.exe\" --help)",
-      "Bash(\"c:/Users/santi/repos/ggj-2026/tools/psxavenc/psxavenc.exe\" -t spu -h)"
+      "Bash(\"c:/Users/santi/repos/ggj-2026/tools/psxavenc/psxavenc.exe\" -t spu -h)",
+      "Bash(where:*)",
+      "Bash(\"C:/Users/santi/repos/ggj-2026/web/rom/PSX Snake Alpha Source Code and Assets/Source Code and Assets/Source Code/mkpsxiso/mkpsxiso.exe\" iso.xml -y -o .)",
+      "Bash(\"C:/Users/santi/repos/ggj-2026/web/rom/PSX Snake Alpha Source Code and Assets/Source Code and Assets/Source Code/mkpsxiso/mkpsxiso.exe\" iso.xml -y)",
+      "Bash(build_iso.bat)",
+      "Bash(cmd.exe //c \"call c:\\\\Users\\\\santi\\\\repos\\\\ggj-2026\\\\build_iso.bat\")",
+      "Bash(powershell.exe -Command \"& ''c:\\\\Users\\\\santi\\\\repos\\\\ggj-2026\\\\build_iso.bat''\")",
+      "Bash(powershell.exe -Command \"Get-ChildItem ''c:\\\\Users\\\\santi\\\\repos\\\\ggj-2026\\\\web\\\\rom'' | Select-Object Name, Length | Format-Table -AutoSize\")",
+      "Bash(powershell.exe -Command \"cd ''c:\\\\Users\\\\santi\\\\repos\\\\ggj-2026''; cmake --build build 2>&1 | Select-Object -First 50\")",
+      "Bash(powershell.exe -Command \"cd ''c:\\\\Users\\\\santi\\\\repos\\\\ggj-2026''; cmake --build build 2>&1 | Select-Object -First 30\")",
+      "Bash(powershell.exe -Command \"cd ''c:\\\\Users\\\\santi\\\\repos\\\\ggj-2026''; cmake --build build 2>&1\")"
     ]
   }
 }

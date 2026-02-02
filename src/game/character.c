@@ -550,3 +550,75 @@ void drawWorldItem(DMAChain *chain, const Model *item, const Camera *cam,
 		viewX, viewY, viewZ, adjustedRotation,
 		scale, scale, scale, cam, viewZ);
 }
+
+void drawEnforcer(DMAChain *chain,
+	const Model *bodyModel, const Model *legLeftModel, const Model *legRightModel,
+	int32_t x, int32_t y, int32_t z, int16_t facing,
+	int16_t walkCycle, bool isWalking,
+	const Camera *cam)
+{
+	/* Calculate enforcer position relative to camera (in world space) */
+	int32_t relX = (x >> 12) - cam->x;
+	int32_t relY = (y >> 12) - cam->y;
+	int32_t relZ = (z >> 12) - cam->z;
+
+	/* Apply camera's full view rotation matrix (includes both pitch and yaw) */
+	int32_t viewX = ((int32_t)cam->viewRotation.m[0][0] * relX +
+	                 (int32_t)cam->viewRotation.m[0][1] * relY +
+	                 (int32_t)cam->viewRotation.m[0][2] * relZ) >> FP_SHIFT;
+	int32_t viewY = ((int32_t)cam->viewRotation.m[1][0] * relX +
+	                 (int32_t)cam->viewRotation.m[1][1] * relY +
+	                 (int32_t)cam->viewRotation.m[1][2] * relZ) >> FP_SHIFT;
+	int32_t viewZ = ((int32_t)cam->viewRotation.m[2][0] * relX +
+	                 (int32_t)cam->viewRotation.m[2][1] * relY +
+	                 (int32_t)cam->viewRotation.m[2][2] * relZ) >> FP_SHIFT;
+
+	/* Facing adjusted for camera rotation */
+	int16_t adjustedFacing = facing - cam->yaw;
+
+	/* Calculate walk animation */
+	int16_t yBob = 0;
+	int16_t bodyLean = 0;
+	int16_t legSwingLeft = 0;
+	int16_t legSwingRight = 0;
+
+	if (isWalking) {
+		/* Use walkCycle (0-4095) for leg swing animation */
+		int swing = isin(walkCycle);  /* Returns -ONE to +ONE */
+
+		/* Leg swing - opposite directions like player character */
+		int legSwing = (swing * LEG_SWING_ANGLE) / ONE;
+		legSwingLeft = -legSwing;
+		legSwingRight = legSwing;
+
+		/* Double the frequency for body bob (2 bobs per full walk cycle) */
+		int bobPhase = (walkCycle * 2) & 0xFFF;
+		int bobWave = isin(bobPhase);
+		yBob = (bobWave * 3) / ONE;    /* Small vertical bob */
+
+		/* Add slight forward/back lean */
+		bodyLean = (bobWave * 30) / ONE;
+	}
+
+	/* Draw body + head with Y offset and walk bob */
+	drawBodyPart(chain, bodyModel,
+		0, ENFORCER_Y_OFFSET + yBob, 0,
+		bodyLean, 0, 0,
+		viewX, viewY, viewZ, adjustedFacing,
+		ENFORCER_SCALE, ENFORCER_SCALE, ENFORCER_SCALE, cam, viewZ);
+
+	/* Draw left leg with swing animation
+	 * Leg offset: positioned at hip (slightly below and to the side of body center) */
+	drawBodyPart(chain, legLeftModel,
+		ENFORCER_LEG_OFFSET_X, ENFORCER_Y_OFFSET + ENFORCER_LEG_OFFSET_Y, 0,
+		legSwingLeft, 0, 0,  /* X rotation for forward/back swing */
+		viewX, viewY, viewZ, adjustedFacing,
+		ENFORCER_SCALE, ENFORCER_SCALE, ENFORCER_SCALE, cam, viewZ);
+
+	/* Draw right leg with opposite swing animation */
+	drawBodyPart(chain, legRightModel,
+		-ENFORCER_LEG_OFFSET_X, ENFORCER_Y_OFFSET + ENFORCER_LEG_OFFSET_Y, 0,
+		legSwingRight, 0, 0,
+		viewX, viewY, viewZ, adjustedFacing,
+		ENFORCER_SCALE, ENFORCER_SCALE, ENFORCER_SCALE, cam, viewZ);
+}
