@@ -13,13 +13,13 @@
 *============================================================================*/
 
 /* Movement speed (world units per frame) */
-#define PLAYER_MOVE_SPEED       20000
+#define PLAYER_MOVE_SPEED       10000
 
 /* Outdoor speed multiplier (256 = 1.0x, 512 = 2.0x, etc.) */
 #define OUTDOOR_SPEED_MULT      1024
 
 /* Turn/rotation speed (angle units per frame, 4096 = 360 degrees) */
-#define PLAYER_TURN_SPEED       128
+#define PLAYER_TURN_SPEED       64
 
 /* Starting rotation (0=North, 1024=East, 2048=South, 3072=West) */
 #define PLAYER_START_ROTATION   1024

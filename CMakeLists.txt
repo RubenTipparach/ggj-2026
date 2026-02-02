@@ -1053,14 +1053,14 @@ add_custom_target(build-web
 	# Run mkpsxiso to create proper CD image
 	COMMAND ${CMAKE_COMMAND} -E chdir "${ISO_WORK_DIR}" "${MKPSXISO}" -y iso.xml
 	# Copy bin/cue to web/rom
-	COMMAND ${CMAKE_COMMAND} -E copy "${ISO_WORK_DIR}/lander.bin" "${WEB_ROM_DIR}/lander.bin"
-	COMMAND ${CMAKE_COMMAND} -E copy "${ISO_WORK_DIR}/lander.cue" "${WEB_ROM_DIR}/lander.cue"
-	# Create lander.rom (zip of bin+cue for EmulatorJS)
-	COMMAND ${CMAKE_COMMAND} -E chdir "${WEB_ROM_DIR}" ${CMAKE_COMMAND} -E tar cf "${WEB_ROM_DIR}/lander.rom" --format=zip lander.bin lander.cue
+	COMMAND ${CMAKE_COMMAND} -E copy "${ISO_WORK_DIR}/revenants_of_elmoria.bin" "${WEB_ROM_DIR}/revenants_of_elmoria.bin"
+	COMMAND ${CMAKE_COMMAND} -E copy "${ISO_WORK_DIR}/revenants_of_elmoria.cue" "${WEB_ROM_DIR}/revenants_of_elmoria.cue"
+	# Create revenants_of_elmoria.rom (zip of bin+cue for EmulatorJS)
+	COMMAND ${CMAKE_COMMAND} -E chdir "${WEB_ROM_DIR}" ${CMAKE_COMMAND} -E tar cf "${WEB_ROM_DIR}/revenants_of_elmoria.rom" --format=zip revenants_of_elmoria.bin revenants_of_elmoria.cue
 	# Create full web distribution zip with ALL required files for itch.io
 	COMMAND ${CMAKE_COMMAND} -E chdir "${PROJECT_SOURCE_DIR}/web" ${CMAKE_COMMAND} -E tar cf "${PROJECT_BINARY_DIR}/web_build.zip" --format=zip index.html bios data emulatorjs rom
 	COMMAND ${CMAKE_COMMAND} -E echo "Web build complete!"
-	COMMAND ${CMAKE_COMMAND} -E echo "  ROM: ${WEB_ROM_DIR}/lander.rom"
+	COMMAND ${CMAKE_COMMAND} -E echo "  ROM: ${WEB_ROM_DIR}/revenants_of_elmoria.rom"
 	COMMAND ${CMAKE_COMMAND} -E echo "  Full package: ${PROJECT_BINARY_DIR}/web_build.zip"
 	VERBATIM
 )

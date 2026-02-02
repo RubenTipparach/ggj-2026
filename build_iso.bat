@@ -54,7 +54,7 @@ echo STACK=801FFFF0>> "%WORK_DIR%\system.cnf"
 REM Create ISO XML configuration with audio tracks
 (
 echo ^<?xml version="1.0" encoding="UTF-8"?^>
-echo ^<iso_project image_name="lander.bin" cue_sheet="lander.cue"^>
+echo ^<iso_project image_name="revenants_of_elmoria.bin" cue_sheet="revenants_of_elmoria.cue"^>
 echo     ^<track type="data"^>
 echo         ^<directory_tree^>
 echo             ^<file name="SYSTEM.CNF" source="system.cnf"/^>
@@ -67,8 +67,8 @@ echo ^</iso_project^>
 ) > "%WORK_DIR%\iso.xml"
 
 REM Delete old files to avoid lock issues
-if exist "%WORK_DIR%\lander.bin" del /F "%WORK_DIR%\lander.bin"
-if exist "%WORK_DIR%\lander.cue" del /F "%WORK_DIR%\lander.cue"
+if exist "%WORK_DIR%\revenants_of_elmoria.bin" del /F "%WORK_DIR%\revenants_of_elmoria.bin"
+if exist "%WORK_DIR%\revenants_of_elmoria.cue" del /F "%WORK_DIR%\revenants_of_elmoria.cue"
 
 REM Build disc image (must run from work dir for relative paths in XML)
 echo Building disc image...
@@ -83,25 +83,25 @@ popd
 
 REM Copy output to web/rom
 if not exist "%OUTPUT_DIR%" mkdir "%OUTPUT_DIR%"
-if exist "%OUTPUT_DIR%\lander.bin" del /F "%OUTPUT_DIR%\lander.bin"
-if exist "%OUTPUT_DIR%\lander.cue" del /F "%OUTPUT_DIR%\lander.cue"
-copy /Y "%WORK_DIR%\lander.bin" "%OUTPUT_DIR%\lander.bin" >nul
-copy /Y "%WORK_DIR%\lander.cue" "%OUTPUT_DIR%\lander.cue" >nul
+if exist "%OUTPUT_DIR%\revenants_of_elmoria.bin" del /F "%OUTPUT_DIR%\revenants_of_elmoria.bin"
+if exist "%OUTPUT_DIR%\revenants_of_elmoria.cue" del /F "%OUTPUT_DIR%\revenants_of_elmoria.cue"
+copy /Y "%WORK_DIR%\revenants_of_elmoria.bin" "%OUTPUT_DIR%\revenants_of_elmoria.bin" >nul
+copy /Y "%WORK_DIR%\revenants_of_elmoria.cue" "%OUTPUT_DIR%\revenants_of_elmoria.cue" >nul
 
 REM Create lander.rom (renamed .zip) containing both .bin and .cue for EmulatorJS
 REM itch.io blocks fetching .zip files with 403, but .rom extension works
-if exist "%OUTPUT_DIR%\lander.rom" del /F "%OUTPUT_DIR%\lander.rom"
-if exist "%OUTPUT_DIR%\lander.zip" del /F "%OUTPUT_DIR%\lander.zip"
+if exist "%OUTPUT_DIR%\revenants_of_elmoria.rom" del /F "%OUTPUT_DIR%\revenants_of_elmoria.rom"
+if exist "%OUTPUT_DIR%\revenants_of_elmoria.zip" del /F "%OUTPUT_DIR%\revenants_of_elmoria.zip"
 pushd "%OUTPUT_DIR%"
-powershell -NoProfile -ExecutionPolicy Bypass -Command "Compress-Archive -Path 'lander.bin','lander.cue' -DestinationPath 'lander.zip' -Force"
-ren lander.zip lander.rom
+powershell -NoProfile -ExecutionPolicy Bypass -Command "Compress-Archive -Path 'revenants_of_elmoria.bin','revenants_of_elmoria.cue' -DestinationPath 'lander.zip' -Force"
+ren revenants_of_elmoria.zip revenants_of_elmoria.rom
 popd
 
 echo.
 echo SUCCESS! Created:
-echo   %OUTPUT_DIR%\lander.bin
-echo   %OUTPUT_DIR%\lander.cue
-echo   %OUTPUT_DIR%\lander.rom ^(zip with .bin+.cue for EmulatorJS^)
+echo   %OUTPUT_DIR%\revenants_of_elmoria.bin
+echo   %OUTPUT_DIR%\revenants_of_elmoria.cue
+echo   %OUTPUT_DIR%\revenants_of_elmoria.rom ^(zip with .bin+.cue for EmulatorJS^)
 
 REM Create web_build.zip with all files needed for itch.io deployment
 set WEB_DIR=%PROJECT_ROOT%web
@@ -148,7 +148,7 @@ if errorlevel 1 (
     echo   - bios/ ^(PS1 BIOS files^)
     echo   - data/ ^(EmulatorJS data^)
     echo   - emulatorjs/ ^(EmulatorJS core~3MB^)
-    echo   - rom/lander.rom ^(zip with bin+cue for EmulatorJS^)
+    echo   - rom/revenants_of_elmoria.rom ^(zip with bin+cue for EmulatorJS^)
 )
 
 echo.

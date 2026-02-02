@@ -102,7 +102,7 @@ def create_iso_xml(audio_tracks=None):
     """
     xml = '''<?xml version="1.0" encoding="UTF-8"?>
 
-<iso_project image_name="lander.bin" cue_sheet="lander.cue">
+<iso_project image_name="revenants_of_elmoria.bin" cue_sheet="revenants_of_elmoria.cue">
 \t<track type="data">
 \t\t<directory_tree>
 \t\t\t<file name="SYSTEM.CNF" source="system.cnf"/>
@@ -204,8 +204,8 @@ def main():
 
     # Update XML to use temp filenames
     xml_content = xml_path.read_text()
-    xml_content = xml_content.replace('image_name="lander.bin"', f'image_name="{temp_bin}"')
-    xml_content = xml_content.replace('cue_sheet="lander.cue"', f'cue_sheet="{temp_cue}"')
+    xml_content = xml_content.replace('image_name="revenants_of_elmoria.bin"', f'image_name="{temp_bin}"')
+    xml_content = xml_content.replace('cue_sheet="revenants_of_elmoria.cue"', f'cue_sheet="{temp_cue}"')
     xml_path.write_text(xml_content)
 
     cmd = f'"{mkpsxiso}" iso.xml -y'
@@ -224,8 +224,8 @@ def main():
     cue_path = work_dir / temp_cue
 
     if bin_path.exists():
-        dest_bin = OUTPUT_DIR / "lander.bin"
-        dest_cue = OUTPUT_DIR / "lander.cue"
+        dest_bin = OUTPUT_DIR / "revenants_of_elmoria.bin"
+        dest_cue = OUTPUT_DIR / "revenants_of_elmoria.cue"
 
         for dest in [dest_bin, dest_cue]:
             if dest.exists():
@@ -238,7 +238,7 @@ def main():
         shutil.copy(bin_path, dest_bin)
 
         cue_content = cue_path.read_text()
-        cue_content = cue_content.replace(temp_bin, "lander.bin")
+        cue_content = cue_content.replace(temp_bin, "revenants_of_elmoria.bin")
         dest_cue.write_text(cue_content)
 
         # Clean up temp files
@@ -254,16 +254,16 @@ def main():
 
         # Create zip for EmulatorJS, renamed to .rom (itch.io blocks .zip)
         import zipfile
-        dest_zip = OUTPUT_DIR / "lander.zip"
-        dest_rom = OUTPUT_DIR / "lander.rom"
+        dest_zip = OUTPUT_DIR / "revenants_of_elmoria.zip"
+        dest_rom = OUTPUT_DIR / "revenants_of_elmoria.rom"
         try:
             if dest_zip.exists():
                 dest_zip.unlink()
             if dest_rom.exists():
                 dest_rom.unlink()
             with zipfile.ZipFile(dest_zip, 'w', zipfile.ZIP_DEFLATED) as zf:
-                zf.write(dest_bin, "lander.bin")
-                zf.write(dest_cue, "lander.cue")
+                zf.write(dest_bin, "revenants_of_elmoria.bin")
+                zf.write(dest_cue, "revenants_of_elmoria.cue")
             # Rename to .rom for itch.io compatibility
             dest_zip.rename(dest_rom)
             rom_size = dest_rom.stat().st_size / (1024 * 1024)

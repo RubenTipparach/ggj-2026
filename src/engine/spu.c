@@ -18,6 +18,8 @@ static uint32_t spuRamPos = SPU_RAM_START;
 #define SPU_VOICES ((volatile struct SPUVoice *)0x1f801c00)
 #define SPU_VOL_MAIN_LEFT   (*(volatile uint16_t *)0x1f801d80)
 #define SPU_VOL_MAIN_RIGHT  (*(volatile uint16_t *)0x1f801d82)
+#define SPU_VOL_REVERB_LEFT (*(volatile uint16_t *)0x1f801d84)
+#define SPU_VOL_REVERB_RIGHT (*(volatile uint16_t *)0x1f801d86)
 #define SPU_KEY_ON_LOW      (*(volatile uint16_t *)0x1f801d88)
 #define SPU_KEY_ON_HIGH     (*(volatile uint16_t *)0x1f801d8a)
 #define SPU_KEY_OFF_LOW     (*(volatile uint16_t *)0x1f801d8c)
@@ -109,6 +111,8 @@ void setupSPU(void) {
 	SPU_NOISE_EN_HIGH = 0;
 	SPU_REVERB_EN_LOW = 0;
 	SPU_REVERB_EN_HIGH = 0;
+	SPU_VOL_REVERB_LEFT = 0;   /* Mute reverb output */
+	SPU_VOL_REVERB_RIGHT = 0;
 	SPU_VOL_EXT_LEFT = 0;
 	SPU_VOL_EXT_RIGHT = 0;
 	SPU_CTRL_REG = 0x8000;
