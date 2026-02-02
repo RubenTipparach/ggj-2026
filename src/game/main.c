@@ -1856,6 +1856,24 @@ skip_caught_reset:;
 						targetHouseIndex = correctFoodHouse;
 					}
 				}
+			} else if (gameState == STATE_ENDING) {
+				if (!introTextComplete) {
+					introTextComplete = true;
+					introCharCount = 9999;
+				} else {
+					gameState = STATE_ENDING_2;
+					introCharCount = 0;
+					introTextComplete = false;
+				}
+			} else if (gameState == STATE_ENDING_2) {
+				if (!introTextComplete) {
+					introTextComplete = true;
+					introCharCount = 9999;
+				} else {
+					/* Return to title screen */
+					gameState = STATE_TITLE;
+					currentDay = 1;
+				}
 			} else if (gameState == STATE_EXTERIOR && triggeredDoor >= 0) {
 				entryPosX = player.x;
 				entryPosZ = player.z;
@@ -2385,9 +2403,9 @@ skip_caught_reset:;
 				int threatY = 120;
 				printStringColorZ(chain, &font, threatX + 1, threatY + 1, threatText, 20, 20, 20, 1);
 				printStringColorZ(chain, &font, threatX, threatY, threatText, threatR, threatG, threatB, 0);
-			} else if (gameState == STATE_ENDING) {
-				/* Game ending sequence */
-				const char *text = ENDING_TEXT;
+			} else if (gameState == STATE_ENDING || gameState == STATE_ENDING_2) {
+				/* Game ending sequence (two screens) */
+				const char *text = (gameState == STATE_ENDING) ? ENDING_TEXT_1 : ENDING_TEXT_2;
 				int textLen = 0;
 				for (const char *p = text; *p; p++) textLen++;
 
@@ -2412,7 +2430,8 @@ skip_caught_reset:;
 				printStringColorZ(chain, &font, textX + 1, textY + 1, displayText, 30, 30, 40, 1);
 				printStringColorZ(chain, &font, textX, textY, displayText, 180, 200, 180, 0);
 
-				if (introTextComplete && (frameCounter / 30) % 2 == 0) {
+				/* Show "Thank you" only on second ending screen */
+				if (gameState == STATE_ENDING_2 && introTextComplete && (frameCounter / 30) % 2 == 0) {
 					const char *thanksPrompt = "Thank you for playing";
 					int promptX = (SCREEN_WIDTH - 21 * 5) / 2;
 					int promptY = 220;

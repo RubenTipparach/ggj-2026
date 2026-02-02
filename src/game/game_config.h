@@ -424,7 +424,7 @@
 #define DEBUG_VISUAL_AGENTS     0
 
 /* Allow SELECT button to skip to next day (1 = enabled, 0 = disabled) */
-#define DEBUG_SKIP_DAY          1
+#define DEBUG_SKIP_DAY          0
 
 /*============================================================================
 * ENFORCER SYSTEM
