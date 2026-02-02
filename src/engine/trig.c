@@ -89,9 +89,8 @@ int iatan2(int y, int x) {
 	if (negX) angle = 2048 - angle;     /* 180 deg - angle */
 	if (negY) angle = -angle;           /* Negate for negative Y */
 
-	/* Normalize to 0-4095 range */
-	while (angle < 0) angle += 4096;
-	while (angle >= 4096) angle -= 4096;
+	/* Normalize to 0-4095 range (using modulo for safety) */
+	angle = angle & 0xFFF;  /* Fast modulo 4096 using bitwise AND */
 
 	return angle;
 }

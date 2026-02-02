@@ -1942,14 +1942,20 @@ skip_caught_reset:;
 					gameState = STATE_DIALOG;
 					handledInteraction = true;
 				} else if (instructionsDone && !hasFood && !hasMask && !foodBoxSpawned &&
-				           masksCollected < NUM_HIDING_ADULTS && nearMomForTalk) {
-					/* Player delivered a mask and needs more food */
-					currentDialog = MOM_MORE_FOOD_DIALOG;
-					dialogCharCount = 0;
-					dialogComplete = false;
-					gameState = STATE_DIALOG;
-					foodBoxSpawned = true;
-					handledInteraction = true;
+				           masksCollected < NUM_HIDING_ADULTS) {
+					/* Day 5: Food auto-spawns on floor, no mom dialog */
+					if (currentDay >= 5) {
+						foodBoxSpawned = true;
+						handledInteraction = true;
+					} else if (nearMomForTalk) {
+						/* Days 1-4: Player delivered a mask and needs more food from mom */
+						currentDialog = MOM_MORE_FOOD_DIALOG;
+						dialogCharCount = 0;
+						dialogComplete = false;
+						gameState = STATE_DIALOG;
+						foodBoxSpawned = true;
+						handledInteraction = true;
+					}
 				} else if (nearMomForTalk && currentDay < 5 && foodBoxSpawned) {
 					/* Optional cycling commentary after food spawns */
 					int commentCount = 1;
@@ -2063,13 +2069,20 @@ skip_caught_reset:;
 							/* Reset state for new day */
 							hasFood = false;
 							hasMask = false;
-							foodBoxSpawned = false;
 							momInstructionIndex = 0;
-							instructionsDone = false;
 							momCommentaryIndex = 0;
 							talkedToMomAboutMasks = false;
 							masksCollected = 0;
 							correctFoodHouse = currentDay % NUM_HOUSES;
+
+							/* Day 5: Mom is gone, food auto-spawns on floor */
+							if (currentDay >= 5) {
+								foodBoxSpawned = true;
+								instructionsDone = true;
+							} else {
+								foodBoxSpawned = false;
+								instructionsDone = false;
+							}
 
 							/* Reset hiding adults for new day - avoid food delivery house! */
 							for (int i = 0; i < NUM_HIDING_ADULTS; i++) {
