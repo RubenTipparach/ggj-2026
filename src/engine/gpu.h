@@ -9,7 +9,7 @@
 #include "ps1/gpucmd.h"
 
 #define DMA_MAX_CHUNK_SIZE    16
-#define CHAIN_BUFFER_SIZE   8192
+#define CHAIN_BUFFER_SIZE   16384
 #define ORDERING_TABLE_SIZE 1024
 
 typedef struct {

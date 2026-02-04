@@ -424,7 +424,7 @@
 #define DEBUG_VISUAL_AGENTS     0
 
 /* Allow SELECT button to skip to next day (1 = enabled, 0 = disabled) */
-#define DEBUG_SKIP_DAY          0
+#define DEBUG_SKIP_DAY          1
 
 /*============================================================================
 * ENFORCER SYSTEM
@@ -462,6 +462,9 @@
 
 /* Minimum distance from restaurant for enforcer patrol centers (10 tiles) */
 #define ENFORCER_MIN_RESTAURANT_DIST   (FLOOR_TILE_SIZE * 10)  /* 2560 world units */
+
+/* Enforcer cull distance (don't render if further than this from player) */
+#define ENFORCER_CULL_DIST      3000    /* ~8 tiles */
 
 /* Enforcer visual scale and positioning */
 #define ENFORCER_SCALE          5096    /* 1.0x scale (same as other characters) */

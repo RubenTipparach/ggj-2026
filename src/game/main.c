@@ -812,7 +812,6 @@ int main(int argc, const char **argv)
 	bool talkedToMomAboutMasks = false;
 	bool hasFood = false;
 	bool hasMask = false;
-	int targetHouseIndex = 0; /* Will be synced with correctFoodHouse */
 	bool foodBoxSpawned = false;
 	int32_t foodBoxX = 100 << 12;
 	int32_t foodBoxZ = -100 << 12;
@@ -830,6 +829,7 @@ int main(int argc, const char **argv)
 
 	/* Track which house the food is meant for each day */
 	int correctFoodHouse = currentDay % NUM_HOUSES;
+	int targetHouseIndex = correctFoodHouse;  /* Sync with correctFoodHouse */
 
 	/* Initialize hiding adults for the day */
 	for (int i = 0; i < NUM_HIDING_ADULTS; i++) {
@@ -1126,21 +1126,14 @@ int main(int argc, const char **argv)
 					player.facing = 0;
 					player.isWalking = false;
 
-					/* If caught by enforcer, do the day reset now (screen is black) */
+					/* If caught by enforcer, restart the current day (screen is black) */
 					if (caughtTransition) {
 						caughtTransition = false;
 
-						/* Advance to next day */
-						currentDay++;
+						/* Restart current day (don't advance) */
 						maskDeliveredThisDay = false;
-						if (currentDay > MAX_DAYS) {
-							/* Game complete - show ending */
-							introCharCount = 0;
-							introTextComplete = false;
-							gameState = STATE_ENDING;
-							/* Skip the rest of the caught transition */
-							goto skip_caught_reset;
-						}
+						currentDialog = NULL;
+						dialogComplete = false;
 
 						/* Reset player arm position to resting */
 						player.partRotX[PART_ARM_LEFT] = 0;
@@ -1150,16 +1143,25 @@ int main(int argc, const char **argv)
 						player.partRotZ[PART_ARM_LEFT] = 0;
 						player.partRotZ[PART_ARM_RIGHT] = 0;
 
-						/* Reset state for new day */
+						/* Reset state for restarting the day */
 						hasFood = false;
 						hasMask = false;
-						foodBoxSpawned = false;
+						player.isCarrying = false;
 						momInstructionIndex = 0;
-						instructionsDone = false;
 						momCommentaryIndex = 0;
 						talkedToMomAboutMasks = false;
 						masksCollected = 0;
 						correctFoodHouse = currentDay % NUM_HOUSES;
+						targetHouseIndex = correctFoodHouse;
+
+						/* Day 5: Mom is gone, food auto-spawns on floor */
+						if (currentDay >= 5) {
+							foodBoxSpawned = true;
+							instructionsDone = true;
+						} else {
+							foodBoxSpawned = false;
+							instructionsDone = false;
+						}
 
 						/* Reset hiding adults for new day - avoid food delivery house! */
 						for (int j = 0; j < NUM_HIDING_ADULTS; j++) {
@@ -1195,7 +1197,6 @@ int main(int argc, const char **argv)
 				}
 				gameState = STATE_BLACK;
 				fadeHoldCounter = FADE_HOLD_FRAMES * 256;  /* Convert to delta units */
-skip_caught_reset:;
 			}
 		} else if (gameState == STATE_BLACK) {
 			fadeAlpha = 255;
@@ -2074,6 +2075,7 @@ skip_caught_reset:;
 							talkedToMomAboutMasks = false;
 							masksCollected = 0;
 							correctFoodHouse = currentDay % NUM_HOUSES;
+							targetHouseIndex = correctFoodHouse;
 
 							/* Day 5: Mom is gone, food auto-spawns on floor */
 							if (currentDay >= 5) {
@@ -2131,7 +2133,10 @@ skip_caught_reset:;
 
 				/* If player has food, try to deliver it (only if not exiting) */
 				if (!handledInteraction && hasFood) {
-					if (currentHouseIndex == correctFoodHouse) {
+					/* Compare house addresses, not indices */
+					uint16_t currentAddr = mapHouses[currentHouseIndex].address;
+					uint16_t targetAddr = mapHouses[targetHouseIndex].address;
+					if (currentAddr == targetAddr) {
 						/* Correct house - accept food, give mask */
 						currentDialog = CITIZEN_ACCEPT_FOOD;
 						dialogCharCount = 0;
@@ -2250,6 +2255,7 @@ skip_caught_reset:;
 					masksCollected = 0;
 					maskDeliveredThisDay = false;
 					correctFoodHouse = currentDay % NUM_HOUSES;
+					targetHouseIndex = correctFoodHouse;
 					player.isCarrying = false;
 
 					/* Day 5: Mom is gone, food auto-spawns on floor */
@@ -2671,9 +2677,19 @@ skip_caught_reset:;
 					drawFencePost(chain, &mapFencePosts[i], &cam);
 				}
 
-				/* Draw enforcers (body + animated legs) */
+				/* Draw enforcers (body + animated legs) - cull if too far */
+				int32_t pWorldX = player.x >> 12;
+				int32_t pWorldZ = player.z >> 12;
 				for (int i = 0; i < MAX_ENFORCERS; i++) {
 					if (!enforcers[i].isActive) continue;
+
+					/* Distance culling - don't render enforcers too far from player */
+					int32_t enfX = enforcers[i].x >> 12;
+					int32_t enfZ = enforcers[i].z >> 12;
+					int32_t cullDx = enfX - pWorldX;
+					int32_t cullDz = enfZ - pWorldZ;
+					int32_t cullDistSq = cullDx * cullDx + cullDz * cullDz;
+					if (cullDistSq > ENFORCER_CULL_DIST * ENFORCER_CULL_DIST) continue;
 
 					bool enforcerWalking = (enforcers[i].state != ENFORCER_ALERT);
 					drawEnforcer(chain,
@@ -2909,7 +2925,7 @@ skip_caught_reset:;
 			/* Draw credits overlay when leaving restaurant for the first time */
 			if (showingCredits) {
 				const char *credit1 = "Music by Jesse Curtis";
-				const char *credit2 = "Game by Ruben Tipprach";
+				const char *credit2 = "Game by Ruben Tipparach";
 
 				/* Determine which credit to show and calculate fade */
 				const char *currentCredit;

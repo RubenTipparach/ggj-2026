@@ -46,7 +46,8 @@ if %ERRORLEVEL% EQU 0 (
     echo.
     echo Build successful!
     echo   ROM: web\rom\revenants_of_elmoria.rom
-    echo   Full package: build\web_build.zip
+    echo   Game zip: build\revenants_of_elmoria.zip ^(bin+cue for emulator distribution^)
+    echo   Web package: build\web_build.zip ^(for itch.io web upload^)
 ) else (
     echo.
     echo Build failed!
