@@ -247,6 +247,24 @@ bool isCDDAPlaying(void) {
 }
 
 void updateCDDA(void) {
-	/* Simple implementation - no looping for now */
-	/* In a real game, you'd check for track end and restart */
+	if (!isPlaying) return;
+
+	/* Check for pending CD-ROM interrupt (non-blocking) */
+	CDROM_ADDRESS = 1;
+	uint8_t intFlags = CDROM_HINTSTS & CDROM_HINT_INT_BITMASK;
+
+	if (intFlags != 0) {
+		/* Drain response bytes */
+		while (CDROM_HSTS & CDROM_HSTS_RSLRRDY)
+			(void)CDROM_RESULT;
+
+		/* Acknowledge interrupt */
+		CDROM_HCLRCTL = CDROM_HCLRCTL_CLRINT_BITMASK;
+		delay(500);
+
+		if (intFlags == 4) {
+			/* INT4: Data end - track finished playing */
+			isPlaying = false;
+		}
+	}
 }
